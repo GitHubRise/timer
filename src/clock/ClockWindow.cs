@@ -78,6 +78,7 @@ namespace GameClock
             // Layered windows are hit-tested per pixel. This almost invisible fill
             // makes the full clock area draggable and right-clickable.
             _root.Background = UiTheme.BrushFrom(Color.FromArgb(1, 0, 0, 0));
+            _root.Cursor = Cursors.SizeAll;
             _root.Padding = new Thickness(18, 10, 18, 14);
 
             _stack = new StackPanel();
