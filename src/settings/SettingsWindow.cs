@@ -240,17 +240,17 @@ namespace GameClock
                 "在桌面上显示可拖动的时间悬浮窗；关闭后不影响任务栏时钟。");
             _taskbarClockCheck = CreateCheckBox(
                 "显示任务栏时钟",
-                false,
+                true,
                 "TaskbarClockCheck",
                 "在任务栏时间区域显示两行时钟，外观跟随系统；不移动、不隐藏系统时钟。");
 
             _taskbarFontScaleCombo = new ComboBox();
             UiTheme.ApplyComboBoxStyle(_taskbarFontScaleCombo);
-            _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(100, "标准（跟随系统）"));
+            _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(100, "标准（跟随系统，默认）"));
             _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(112, "较大（+12%）"));
-            _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(124, "大（+24%，默认）"));
+            _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(124, "大（+24%）"));
             _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(136, "更大（+36%）"));
-            _taskbarFontScaleCombo.SelectedIndex = 2;
+            _taskbarFontScaleCombo.SelectedIndex = 0;
             _taskbarFontScaleCombo.MaxDropDownHeight = 260;
             AutomationProperties.SetAutomationId(_taskbarFontScaleCombo, "TaskbarFontScaleCombo");
             AutomationProperties.SetName(_taskbarFontScaleCombo, "任务栏时钟字号");
@@ -274,7 +274,7 @@ namespace GameClock
             AutomationProperties.SetAutomationId(_taskbarFormatBox, "TaskbarFormatBox");
             AutomationProperties.SetName(_taskbarFormatBox, "任务栏时钟格式");
 
-            _taskbarFormatStatus = UiTheme.MakeText(
+            _taskbarFormatStatus = SettingsUiHints.Hint(
                 "简洁变量格式，支持两行；任务栏空间不足时会自动收紧字距。",
                 11,
                 UiTheme.TextMuted,
@@ -319,7 +319,7 @@ namespace GameClock
             UiTheme.ApplyRadioButtonStyle(_taskbarTokenFormatRadio);
             AutomationProperties.SetAutomationId(_taskbarTokenFormatRadio, "TaskbarTokenFormatRadio");
 
-            _taskbarFormatHintText = UiTheme.MakeText(
+            _taskbarFormatHintText = SettingsUiHints.Hint(
                 "支持简洁变量。输入时实时更新，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。",
                 11,
                 UiTheme.TextMuted,
@@ -351,7 +351,7 @@ namespace GameClock
             _weatherTestButton.Click += OnTestWeatherCity;
             AutomationProperties.SetAutomationId(_weatherTestButton, "TestWeatherButton");
 
-            _weatherTestStatus = UiTheme.MakeText(
+            _weatherTestStatus = SettingsUiHints.Hint(
                 "输入城市名后，可先测试查询是否成功；不会修改正在显示的天气。",
                 11,
                 UiTheme.TextMuted,
@@ -436,11 +436,11 @@ namespace GameClock
             AutomationProperties.SetAutomationId(_formatBox, "CustomFormatBox");
             AutomationProperties.SetName(_formatBox, "自定义时间格式");
 
-            _formatStatus = UiTheme.MakeText("输入后自动预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。", 11, UiTheme.TextMuted, FontWeights.Normal);
+            _formatStatus = SettingsUiHints.Hint("输入后自动预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。", 11, UiTheme.TextMuted, FontWeights.Normal);
             _formatStatus.Margin = new Thickness(0, 6, 0, 0);
             _formatStatus.TextWrapping = TextWrapping.Wrap;
 
-            _formatHintText = UiTheme.MakeText(
+            _formatHintText = SettingsUiHints.Hint(
                 "支持 .NET 日期格式。输入时实时预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。",
                 11,
                 UiTheme.TextMuted,
@@ -497,7 +497,7 @@ namespace GameClock
             AutomationProperties.SetAutomationId(_weatherFormatBox, "WeatherFormatBox");
             AutomationProperties.SetName(_weatherFormatBox, "天气格式");
 
-            _weatherFormatStatus = UiTheme.MakeText(
+            _weatherFormatStatus = SettingsUiHints.Hint(
                 "留空使用默认格式：城市 · 天气 · 温度 · 今日高低温。",
                 11,
                 UiTheme.TextMuted,
@@ -514,7 +514,7 @@ namespace GameClock
             AutomationProperties.SetAutomationId(_timeZoneCombo, "TimeZoneCombo");
             AutomationProperties.SetName(_timeZoneCombo, "显示时区");
 
-            _timeZoneStatus = UiTheme.MakeText("当前：UTC+08:00", 11, UiTheme.TextMuted, FontWeights.Normal);
+            _timeZoneStatus = SettingsUiHints.Hint("当前：UTC+08:00", 11, UiTheme.TextMuted, FontWeights.Normal);
             _timeZoneStatus.Margin = new Thickness(0, 6, 0, 0);
             _timeZoneStatus.TextWrapping = TextWrapping.Wrap;
 
@@ -604,7 +604,7 @@ namespace GameClock
             _reminderScroll.Margin = new Thickness(0, 4, 0, 0);
             _reminderScroll.Content = _reminderRowsPanel;
 
-            _reminderEmptyText = UiTheme.MakeText(
+            _reminderEmptyText = SettingsUiHints.Hint(
                 "还没有定时提醒。点击上面的内置提醒，或在下方自行添加。",
                 11.5,
                 UiTheme.TextMuted,
@@ -630,7 +630,7 @@ namespace GameClock
                 FontWeights.Normal);
             _scheduleFilterHint.Margin = new Thickness(0, 5, 0, 0);
 
-            _scheduleStatus = UiTheme.MakeText(
+            _scheduleStatus = SettingsUiHints.Hint(
                 "日程按当前显示时区触发；启用或停用、编辑、删除会立即反映到列表。",
                 11,
                 UiTheme.TextMuted,
@@ -646,7 +646,7 @@ namespace GameClock
             _scheduleScroll.Margin = new Thickness(0, 4, 0, 0);
             _scheduleScroll.Content = _scheduleRowsPanel;
 
-            _scheduleEmptyText = UiTheme.MakeText(
+            _scheduleEmptyText = SettingsUiHints.Hint(
                 "还没有日程。添加生日、纪念日、会议或机票等重要约定。",
                 11.5,
                 UiTheme.TextMuted,

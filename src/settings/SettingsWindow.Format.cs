@@ -26,7 +26,7 @@ namespace GameClock
             Border timeZoneCard = UiTheme.MakeCard();
             StackPanel timeZonePanel = new StackPanel();
             timeZonePanel.Children.Add(UiTheme.MakeSectionTitle("显示时区"));
-            TextBlock timeZoneHint = UiTheme.MakeText(
+            TextBlock timeZoneHint = SettingsUiHints.Hint(
                 "默认使用 UTC+08:00（中国标准时间）。切换后，时间、日期、周数和提醒触发都按所选时区计算。",
                 11,
                 UiTheme.TextMuted,
@@ -64,7 +64,7 @@ namespace GameClock
             Border helpCard = UiTheme.MakeCard();
             StackPanel helpPanel = new StackPanel();
             helpPanel.Children.Add(UiTheme.MakeSectionTitle("格式说明"));
-            TextBlock helpHint = UiTheme.MakeText(
+            TextBlock helpHint = SettingsUiHints.Hint(
                 "支持检索：输入变量名、说明或示例关键词。一行一个变量：格式：描述。示例预览：预览。",
                 11,
                 UiTheme.TextMuted,
@@ -87,7 +87,7 @@ namespace GameClock
             Border card = UiTheme.MakeCard();
             StackPanel panel = new StackPanel();
             panel.Children.Add(UiTheme.MakeSectionTitle("各时钟的显示格式"));
-            TextBlock hint = UiTheme.MakeText(
+            TextBlock hint = SettingsUiHints.Hint(
                 "桌面悬浮窗与任务栏时钟各自保存格式语言、常用格式与自定义格式，请到对应页签修改。本页只设置全局时区与变量说明。",
                 11,
                 UiTheme.TextMuted,
@@ -105,7 +105,7 @@ namespace GameClock
             Border presetCard = UiTheme.MakeCard();
             StackPanel presetPanel = new StackPanel();
             presetPanel.Children.Add(UiTheme.MakeSectionTitle("格式语言"));
-            TextBlock modeHint = UiTheme.MakeText(
+            TextBlock modeHint = SettingsUiHints.Hint(
                 "“兼容 .NET”沿用原有格式；“简洁变量”支持农历、干支、星期和天气变量。两种格式分别保存，切换不会丢失。",
                 11,
                 UiTheme.TextMuted,
@@ -124,7 +124,7 @@ namespace GameClock
             Border presetsCard = UiTheme.MakeCard();
             StackPanel presetsPanel = new StackPanel();
             presetsPanel.Children.Add(UiTheme.MakeSectionTitle("常用格式（内置）"));
-            TextBlock presetHint = UiTheme.MakeText(
+            TextBlock presetHint = SettingsUiHints.Hint(
                 "直接选择即可，不需要修改格式。示例使用当前日期时间生成。",
                 11,
                 UiTheme.TextMuted,
@@ -158,7 +158,7 @@ namespace GameClock
             actions.Children.Add(newlineButton);
             Grid.SetColumn(newlineButton, 0);
 
-            TextBlock noNeedEnter = UiTheme.MakeText("输入即预览，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
+            TextBlock noNeedEnter = SettingsUiHints.Hint("输入即预览，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
             noNeedEnter.VerticalAlignment = VerticalAlignment.Center;
             noNeedEnter.HorizontalAlignment = HorizontalAlignment.Right;
             actions.Children.Add(noNeedEnter);
@@ -269,7 +269,7 @@ namespace GameClock
 
             if (shown == 0)
             {
-                TextBlock empty = UiTheme.MakeText(
+                TextBlock empty = SettingsUiHints.Hint(
                     "没有匹配的变量，试试 yyyy、mm、农历、星期。",
                     11.5,
                     UiTheme.TextMuted,
@@ -391,14 +391,14 @@ namespace GameClock
             if (string.Equals(choice.Id, systemId, StringComparison.OrdinalIgnoreCase))
             {
                 _timeZoneStatus.Text = "当前：" + current + "\n已与系统时区一致。";
-                _timeZoneStatus.Foreground = UiTheme.TextMuted;
+                SettingsUiHints.SetStatusColor(_timeZoneStatus, UiTheme.TextMuted);
             }
             else
             {
                 _timeZoneStatus.Text = "当前：" + current
                     + "\n系统时区：" + TimeZoneCatalog.GetOffsetLabel(systemId) + " · " + systemId
                     + "，可点「同步系统时区」。";
-                _timeZoneStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_timeZoneStatus, UiTheme.Accent);
             }
         }
 
@@ -461,13 +461,13 @@ namespace GameClock
                     _working.TimeFormat = normalized;
                 }
                 _formatStatus.Text = "输入后自动预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。";
-                _formatStatus.Foreground = UiTheme.TextMuted;
+                SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.TextMuted);
                 UpdatePreview();
             }
             else
             {
                 _formatStatus.Text = error;
-                _formatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.Accent);
                 _formatStatus.BringIntoView();
             }
 
@@ -526,7 +526,7 @@ namespace GameClock
             if (TimeFormatter.CountNewlines(_formatBox.Text) >= 1)
             {
                 _formatStatus.Text = "最多只能插入一个换行。";
-                _formatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.Accent);
                 return;
             }
 

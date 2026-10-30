@@ -543,7 +543,7 @@ namespace GameClock
             }
 
             double nativeSize = _baseFontSize > 0 ? _baseFontSize : 12.0;
-            double fontScale = _settings.TaskbarFontScale > 0 ? _settings.TaskbarFontScale / 100.0 : 1.24;
+            double fontScale = _settings.TaskbarFontScale > 0 ? _settings.TaskbarFontScale / 100.0 : 1.0;
             if (fontScale < 1.0)
             {
                 fontScale = 1.0;

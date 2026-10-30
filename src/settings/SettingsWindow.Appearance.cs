@@ -27,7 +27,7 @@ namespace GameClock
             StackPanel overlayPanel = new StackPanel();
             overlayPanel.Children.Add(UiTheme.MakeSectionTitle("桌面悬浮窗"));
             overlayPanel.Children.Add(_desktopOverlayCheck);
-            TextBlock overlayHint = UiTheme.MakeText(
+            TextBlock overlayHint = SettingsUiHints.Hint(
                 "可拖动并支持右键菜单；关闭后桌面不再显示悬浮窗，任务栏时钟不受影响。",
                 11,
                 UiTheme.TextMuted,
@@ -60,7 +60,7 @@ namespace GameClock
             effectPanel.Children.Add(BuildSliderBlock("不透明度", _opacitySlider, _opacityValueText, "整个悬浮窗的不透明度，20% 到 100%", new Thickness(0, 0, 0, 4)));
             effectPanel.Children.Add(_shadowCheck);
             effectPanel.Children.Add(_threeDCheck);
-            TextBlock effectHint = UiTheme.MakeText(
+            TextBlock effectHint = SettingsUiHints.Hint(
                 "阴影提升可读性；3D 立体字会为文字增加向下偏移的厚度。",
                 11,
                 UiTheme.TextMuted,
@@ -77,7 +77,7 @@ namespace GameClock
             windowPanel.Children.Add(_topmostCheck);
             windowPanel.Children.Add(_startWithWindowsCheck);
             windowPanel.Children.Add(_hideFullscreenCheck);
-            TextBlock windowHint = UiTheme.MakeText(
+            TextBlock windowHint = SettingsUiHints.Hint(
                 "穿透开启后，时钟上的右键菜单不可用，请右键系统托盘图标恢复；全屏隐藏会在检测到全屏游戏或视频时暂时隐藏悬浮窗。",
                 11,
                 UiTheme.TextMuted,

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -26,7 +26,7 @@ namespace GameClock
             Border toolbarCard = UiTheme.MakeCard();
             StackPanel toolbar = new StackPanel();
             toolbar.Children.Add(UiTheme.MakeSectionTitle("日程列表"));
-            TextBlock intro = UiTheme.MakeText(
+            TextBlock intro = SettingsUiHints.Hint(
                 "生日、纪念日、会议、机票等重要约定集中展示。添加或编辑时使用弹框。",
                 11,
                 UiTheme.TextMuted,
@@ -215,12 +215,12 @@ namespace GameClock
             {
                 _scheduleEmptyText.Text = "还没有日程。点击右上角“添加日程”创建生日、纪念日、会议或机票提醒。";
             }
-            else if (visible == 0)
+            else if (SettingsUiHints.ShowHints && visible == 0)
             {
                 _scheduleEmptyText.Text = "没有匹配的日程，换个关键词试试。";
             }
 
-            _scheduleEmptyText.Visibility = visible == 0
+            _scheduleEmptyText.Visibility = SettingsUiHints.ShowHints && visible == 0
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             _scheduleScroll.Visibility = visible == 0
@@ -394,7 +394,7 @@ namespace GameClock
         private void SetScheduleSuccess(string text)
         {
             _scheduleStatus.Text = text;
-            _scheduleStatus.Foreground = UiTheme.Success;
+            SettingsUiHints.SetStatusColor(_scheduleStatus, UiTheme.Success);
         }
 
         private sealed class ScheduleRow

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -69,7 +69,7 @@ namespace GameClock
 
             content.Children.Add(_weatherTestStatus);
 
-            TextBlock cityHint = UiTheme.MakeText(
+            TextBlock cityHint = SettingsUiHints.Hint(
                 "支持中文或英文城市名，例如：北京、上海、Tokyo。保存或应用后会立即刷新。",
                 11,
                 UiTheme.TextMuted,
@@ -84,7 +84,7 @@ namespace GameClock
             content.Children.Add(_weatherFormatBox);
             content.Children.Add(_weatherFormatStatus);
 
-            TextBlock formatHelp = UiTheme.MakeText(
+            TextBlock formatHelp = SettingsUiHints.Hint(
                 "可用变量：pos 城市  we1~we6 6日天气  tl1~tl6 低温  th1~th6 高温\n" +
                 "rtm 实时温度  rhu 湿度  rwd 风向  icn 天气图标  aqi 空气质量  ip 公网 IP\n\n" +
                 "示例：pos · we1 · rtm\n" +
@@ -99,7 +99,7 @@ namespace GameClock
             formatHelp.LineHeight = 18;
             content.Children.Add(formatHelp);
 
-            TextBlock apiHint = UiTheme.MakeText(
+            TextBlock apiHint = SettingsUiHints.Hint(
                 "天气数据来自 Open-Meteo 公共 API，按设置的频率自动更新（默认 30 分钟）；无需 API Key。网络不可用时会自动隐藏天气行。",
                 11,
                 UiTheme.TextMuted,
@@ -111,20 +111,23 @@ namespace GameClock
             weatherCard.Child = content;
             panel.Children.Add(weatherCard);
 
-            Border noteCard = UiTheme.MakeCard();
-            StackPanel note = new StackPanel();
-            note.Children.Add(UiTheme.MakeSectionTitle("显示说明"));
-            TextBlock noteText = UiTheme.MakeText(
-                "天气会显示在时间下方，例如：\n北京 · 晴 · 11°C · 今日 5°~16°\n\n" +
-                "天气的字体、字号、颜色和阴影都可以独立于时间设置。\n" +
-                "只发送城市名称和坐标到公共天气服务，不包含任何个人账号信息。",
-                11.5,
-                UiTheme.TextSecondary,
-                FontWeights.Normal);
-            noteText.LineHeight = 19;
-            note.Children.Add(noteText);
-            noteCard.Child = note;
-            panel.Children.Add(noteCard);
+            if (SettingsUiHints.ShowHints)
+            {
+                Border noteCard = UiTheme.MakeCard();
+                StackPanel note = new StackPanel();
+                note.Children.Add(UiTheme.MakeSectionTitle("显示说明"));
+                TextBlock noteText = UiTheme.MakeText(
+                    "天气会显示在时间下方，例如：\n北京 · 晴 · 11°C · 今日 5°~16°\n\n" +
+                    "天气的字体、字号、颜色和阴影都可以独立于时间设置。\n" +
+                    "只发送城市名称和坐标到公共天气服务，不包含任何个人账号信息。",
+                    11.5,
+                    UiTheme.TextSecondary,
+                    FontWeights.Normal);
+                noteText.LineHeight = 19;
+                note.Children.Add(noteText);
+                noteCard.Child = note;
+                panel.Children.Add(noteCard);
+            }
 
             return panel;
         }
@@ -326,7 +329,7 @@ namespace GameClock
             if (city.Length == 0)
             {
                 _weatherTestStatus.Text = "请先填写城市名。";
-                _weatherTestStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_weatherTestStatus, UiTheme.Accent);
                 return;
             }
 
@@ -334,7 +337,7 @@ namespace GameClock
             _weatherTestButton.IsEnabled = false;
             _weatherTestButton.Content = "查询中…";
             _weatherTestStatus.Text = "正在查询 " + city + " 的天气，请稍候…";
-            _weatherTestStatus.Foreground = UiTheme.TextMuted;
+            SettingsUiHints.SetStatusColor(_weatherTestStatus, UiTheme.TextMuted);
 
             WeatherService.FetchAsync(city, delegate(WeatherInfo info)
             {
@@ -351,12 +354,12 @@ namespace GameClock
                         if (info != null)
                         {
                             _weatherTestStatus.Text = "✓ 查询成功：" + info.DisplayText;
-                            _weatherTestStatus.Foreground = UiTheme.Success;
+                            SettingsUiHints.SetStatusColor(_weatherTestStatus, UiTheme.Success);
                         }
                         else
                         {
                             _weatherTestStatus.Text = "✕ 查询失败：未找到该地名，或网络暂时不可用。";
-                            _weatherTestStatus.Foreground = UiTheme.Accent;
+                            SettingsUiHints.SetStatusColor(_weatherTestStatus, UiTheme.Accent);
                         }
                     }));
                 }
@@ -440,7 +443,7 @@ namespace GameClock
             else
             {
                 _weatherFormatStatus.Text = error;
-                _weatherFormatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_weatherFormatStatus, UiTheme.Accent);
             }
             MarkDirty();
         }
@@ -450,14 +453,14 @@ namespace GameClock
             if (string.IsNullOrWhiteSpace(_working.WeatherFormat))
             {
                 _weatherFormatStatus.Text = "留空使用默认格式：城市 · 天气 · 温度 · 今日高低温。";
-                _weatherFormatStatus.Foreground = UiTheme.TextMuted;
+                SettingsUiHints.SetStatusColor(_weatherFormatStatus, UiTheme.TextMuted);
                 return;
             }
 
             DateTime now = TimeZoneCatalog.GetNow(TimeZoneCatalog.GetZone(_working.TimeZoneId));
             string example = FormatEngine.Format(now, CreateSampleWeather(), _working.WeatherFormat);
             _weatherFormatStatus.Text = "预览：" + example;
-            _weatherFormatStatus.Foreground = UiTheme.TextMuted;
+            SettingsUiHints.SetStatusColor(_weatherFormatStatus, UiTheme.TextMuted);
         }
 
         private sealed class SimpleWin32Window : WinForms.IWin32Window

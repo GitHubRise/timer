@@ -52,7 +52,7 @@ namespace GameClock
             StackPanel titleStack = new StackPanel();
             titleStack.Background = Brushes.Transparent;
             TextBlock title = UiTheme.MakeText("时间悬浮窗设置", 22, UiTheme.TextPrimary, FontWeights.SemiBold);
-            TextBlock subtitle = UiTheme.MakeText(
+            TextBlock subtitle = SettingsUiHints.Hint(
                 "颜色、字体、格式和提醒；点击“应用”只保存不关闭。",
                 11.5,
                 UiTheme.TextSecondary,
@@ -188,7 +188,7 @@ namespace GameClock
             _taskbarClockCheck.IsChecked = _working.ShowTaskbarClock;
 
             _taskbarBoldCheck.IsChecked = _working.TaskbarBold;
-            _taskbarFontScaleCombo.SelectedIndex = 2;
+            _taskbarFontScaleCombo.SelectedIndex = 0;
             for (int i = 0; i < _taskbarFontScaleCombo.Items.Count; i++)
             {
                 ComboBoxItem item = _taskbarFontScaleCombo.Items[i] as ComboBoxItem;
@@ -210,7 +210,7 @@ namespace GameClock
             _taskbarFormatStatus.Text = taskbarTokenMode
                 ? "简洁变量格式，支持两行；任务栏空间不足时会自动收紧字距。"
                 : ".NET 格式，支持两行；任务栏空间不足时会自动收紧字距。";
-            _taskbarFormatStatus.Foreground = UiTheme.TextMuted;
+            SettingsUiHints.SetStatusColor(_taskbarFormatStatus, UiTheme.TextMuted);
 
             string mode = ReminderModes.Normalize(_working.CurrentMode);
             _workModeRadio.IsChecked = mode == ReminderModes.Work;
@@ -255,7 +255,7 @@ namespace GameClock
             SelectTimeZoneChoice(_working.TimeZoneId);
             UpdateFormatComboSelection();
             _formatStatus.Text = "输入后自动预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。";
-            _formatStatus.Foreground = UiTheme.TextMuted;
+            SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.TextMuted);
 
             UpdateColorUi();
             RebuildReminderRows();
@@ -391,7 +391,7 @@ namespace GameClock
             if (!formatValid)
             {
                 _formatStatus.Text = formatError;
-                _formatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.Accent);
                 _tabs.SelectedIndex = TabFormat;
                 _formatStatus.BringIntoView();
                 _formatBox.Focus();
@@ -422,7 +422,7 @@ namespace GameClock
                     out weatherFormatError))
                 {
                     _weatherFormatStatus.Text = weatherFormatError;
-                    _weatherFormatStatus.Foreground = UiTheme.Accent;
+                    SettingsUiHints.SetStatusColor(_weatherFormatStatus, UiTheme.Accent);
                     _weatherFormatStatus.BringIntoView();
                     _tabs.SelectedIndex = TabWeather;
                     _weatherFormatBox.Focus();
@@ -453,7 +453,7 @@ namespace GameClock
             if (!taskbarFormatValid)
             {
                 _taskbarFormatStatus.Text = taskbarFormatError;
-                _taskbarFormatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_taskbarFormatStatus, UiTheme.Accent);
                 _tabs.SelectedIndex = TabTaskbar;
                 _taskbarFormatStatus.BringIntoView();
                 _taskbarFormatBox.Focus();
@@ -477,7 +477,7 @@ namespace GameClock
                 _working.TimeZoneId = timeZoneChoice.Id;
             }
             _formatStatus.Text = "输入后自动预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。";
-            _formatStatus.Foreground = UiTheme.TextMuted;
+            SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.TextMuted);
 
             FontChoice font = _fontCombo.SelectedItem as FontChoice;
             if (font != null)

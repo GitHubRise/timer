@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -26,7 +26,7 @@ namespace GameClock
             Border stateCard = UiTheme.MakeCard();
             StackPanel stateContent = new StackPanel();
             stateContent.Children.Add(UiTheme.MakeSectionTitle("当前状态"));
-            TextBlock stateHint = UiTheme.MakeText(
+            TextBlock stateHint = SettingsUiHints.Hint(
                 "标记你现在的状态。提醒会自动过滤：全部状态的提醒始终生效，仅工作和仅娱乐只会在对应状态触发。",
                 11,
                 UiTheme.TextMuted,
@@ -59,7 +59,7 @@ namespace GameClock
             displayContent.Children.Add(_reminderHoverCheck);
             _reminderSoundCheck.Margin = new Thickness(0, 0, 0, 4);
             displayContent.Children.Add(_reminderSoundCheck);
-            TextBlock displayHint = UiTheme.MakeText(
+            TextBlock displayHint = SettingsUiHints.Hint(
                 "时长到点自动关闭；开启悬停检测后，鼠标停留在提醒卡片上满 3 秒也会关闭。闪烁和铃声用于提醒，可在上方调整。",
                 11,
                 UiTheme.TextMuted,
@@ -92,7 +92,7 @@ namespace GameClock
                 presetWrap.Children.Add(button);
             }
             presetPanel.Children.Add(presetWrap);
-            TextBlock presetHint = UiTheme.MakeText(
+            TextBlock presetHint = SettingsUiHints.Hint(
                 "添加后可以在下方修改时间、适用状态或内容，也可以停用或删除。提醒每天触发一次。",
                 11,
                 UiTheme.TextMuted,
@@ -419,7 +419,7 @@ namespace GameClock
             }
 
             _reminderCountText.Text = _working.Reminders.Count.ToString(CultureInfo.InvariantCulture) + " 条";
-            _reminderEmptyText.Visibility = _working.Reminders.Count == 0
+            _reminderEmptyText.Visibility = SettingsUiHints.ShowHints && _working.Reminders.Count == 0
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             _reminderScroll.Visibility = _working.Reminders.Count == 0

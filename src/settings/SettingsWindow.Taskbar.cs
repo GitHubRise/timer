@@ -16,7 +16,7 @@ namespace GameClock
             StackPanel switchPanel = new StackPanel();
             switchPanel.Children.Add(UiTheme.MakeSectionTitle("任务栏时钟"));
             switchPanel.Children.Add(_taskbarClockCheck);
-            TextBlock switchHint = UiTheme.MakeText(
+            TextBlock switchHint = SettingsUiHints.Hint(
                 "开启后在系统任务栏的时间区域内显示两行时钟。字体与颜色跟随系统任务栏，不移动、不隐藏系统时钟；关闭或退出后系统时钟立即恢复。",
                 11,
                 UiTheme.TextMuted,
@@ -30,8 +30,8 @@ namespace GameClock
             Border lookCard = UiTheme.MakeCard();
             StackPanel lookPanel = new StackPanel();
             lookPanel.Children.Add(UiTheme.MakeSectionTitle("文字大小"));
-            TextBlock lookHint = UiTheme.MakeText(
-                "字号以系统任务栏字体为基准放大，再按任务栏可用宽度自动收紧；加粗会占用更多宽度。",
+            TextBlock lookHint = SettingsUiHints.Hint(
+                "字号默认使用系统标准大小，也可在此放大；宽度不足时自动收紧字距，加粗会占用更多宽度。",
                 11,
                 UiTheme.TextMuted,
                 FontWeights.Normal);
@@ -44,18 +44,21 @@ namespace GameClock
             lookCard.Child = lookPanel;
             panel.Children.Add(lookCard);
 
-            Border behaviorCard = UiTheme.MakeCard();
-            StackPanel behaviorPanel = new StackPanel();
-            behaviorPanel.Children.Add(UiTheme.MakeSectionTitle("交互"));
-            TextBlock behaviorHint = UiTheme.MakeText(
-                "鼠标在任务栏时钟上停留约 0.4 秒，或左键单击，会展开“今日”面板：大号时间、农历、天气、当天提醒与日程。右键打开与托盘相同的菜单。",
-                11,
-                UiTheme.TextMuted,
-                FontWeights.Normal);
-            behaviorHint.TextWrapping = TextWrapping.Wrap;
-            behaviorPanel.Children.Add(behaviorHint);
-            behaviorCard.Child = behaviorPanel;
-            panel.Children.Add(behaviorCard);
+            if (SettingsUiHints.ShowHints)
+            {
+                Border behaviorCard = UiTheme.MakeCard();
+                StackPanel behaviorPanel = new StackPanel();
+                behaviorPanel.Children.Add(UiTheme.MakeSectionTitle("交互"));
+                TextBlock behaviorHint = SettingsUiHints.Hint(
+                    "鼠标在任务栏时钟上停留约 0.4 秒，或左键单击，会展开“今日”面板：大号时间、农历、天气、当天提醒与日程。右键打开与托盘相同的菜单。",
+                    11,
+                    UiTheme.TextMuted,
+                    FontWeights.Normal);
+                behaviorHint.TextWrapping = TextWrapping.Wrap;
+                behaviorPanel.Children.Add(behaviorHint);
+                behaviorCard.Child = behaviorPanel;
+                panel.Children.Add(behaviorCard);
+            }
 
             panel.Children.Add(BuildTaskbarFormatSection());
 
@@ -69,7 +72,7 @@ namespace GameClock
             Border modeCard = UiTheme.MakeCard();
             StackPanel modePanel = new StackPanel();
             modePanel.Children.Add(UiTheme.MakeSectionTitle("格式语言"));
-            TextBlock modeHint = UiTheme.MakeText(
+            TextBlock modeHint = SettingsUiHints.Hint(
                 "“兼容 .NET”使用传统日期格式；“简洁变量”支持农历、干支、星期和天气变量。两种格式分别保存，切换不会丢失。",
                 11,
                 UiTheme.TextMuted,
@@ -88,7 +91,7 @@ namespace GameClock
             Border presetsCard = UiTheme.MakeCard();
             StackPanel presetsPanel = new StackPanel();
             presetsPanel.Children.Add(UiTheme.MakeSectionTitle("常用格式（内置）"));
-            TextBlock presetHint = UiTheme.MakeText(
+            TextBlock presetHint = SettingsUiHints.Hint(
                 "直接选择即可，不需要修改格式。示例使用当前日期时间生成。",
                 11,
                 UiTheme.TextMuted,
@@ -122,7 +125,7 @@ namespace GameClock
             actions.Children.Add(newlineButton);
             Grid.SetColumn(newlineButton, 0);
 
-            TextBlock hintRight = UiTheme.MakeText("输入即更新，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
+            TextBlock hintRight = SettingsUiHints.Hint("输入即更新，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
             hintRight.VerticalAlignment = VerticalAlignment.Center;
             hintRight.HorizontalAlignment = HorizontalAlignment.Right;
             actions.Children.Add(hintRight);
@@ -242,12 +245,12 @@ namespace GameClock
                     _working.TaskbarDotNetFormat = normalized;
                 }
                 _taskbarFormatStatus.Text = "格式有效，保存后应用到任务栏时钟。";
-                _taskbarFormatStatus.Foreground = UiTheme.TextMuted;
+                SettingsUiHints.SetStatusColor(_taskbarFormatStatus, UiTheme.TextMuted);
             }
             else
             {
                 _taskbarFormatStatus.Text = error;
-                _taskbarFormatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_taskbarFormatStatus, UiTheme.Accent);
             }
 
             UpdateTaskbarFormatComboSelection();
@@ -305,7 +308,7 @@ namespace GameClock
             if (TimeFormatter.CountNewlines(_taskbarFormatBox.Text) >= 1)
             {
                 _taskbarFormatStatus.Text = "最多只能插入一个换行。";
-                _taskbarFormatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_taskbarFormatStatus, UiTheme.Accent);
                 return;
             }
 

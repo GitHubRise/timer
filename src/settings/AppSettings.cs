@@ -22,7 +22,7 @@ namespace GameClock
         private const string DefaultTaskbarFont = "Microsoft YaHei UI";
         private const double DefaultTaskbarFontSize = 10.0;
         private const string DefaultTaskbarColor = "#000000";
-        private const int DefaultTaskbarFontScale = 124;
+        private const int DefaultTaskbarFontScale = 100;
 
         [DataMember(Name = "color")]
         public string ColorHex { get; set; }
@@ -181,7 +181,7 @@ namespace GameClock
             Topmost = true;
             StartWithWindows = false;
             ShowDesktopOverlay = true;
-            ShowTaskbarClock = false;
+            ShowTaskbarClock = true;
             HideOnFullscreen = true;
             TaskbarFontFamilyName = DefaultTaskbarFont;
             TaskbarFontSize = DefaultTaskbarFontSize;
