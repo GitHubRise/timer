@@ -25,7 +25,7 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 | `src/app/` | 进程入口、控制器、托盘与共用菜单 | 只做编排，不画窗口、不读写注册表 |
 | `src/clock/` | 悬浮窗、任务栏时钟、分层文字、提醒气泡 | 通过事件与控制器交互；任务栏窗只覆盖，不注入 explorer |
 | `src/format/` | 时间格式、简洁变量、时区 | 纯函数，非法输入返回空串 |
-| `src/platform/` | Win32 P/Invoke、开机自启 | 其他模块不得直接 `DllImport` |
+| `src/platform/` | Win32 P/Invoke、开机自启、全局日志 `AppLog` | 其他模块不得直接 `DllImport` |
 | `src/reminders/` | 提醒/日程模型与触发计算 | 不持有窗口引用 |
 | `src/settings/` | `AppSettings`、持久化、设置窗口分部类 | 编辑副本，提交后由控制器应用 |
 | `src/theme/` | 暗色主题、滚动条、字体、SVG 图标 | 不引用 `AppSettings` |
@@ -67,6 +67,14 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 任务栏覆盖窗**不得隐藏** `TrayClockWClass`（会触发任务栏重排、托盘图标移位）；应把系统时钟移出任务栏保留占位，退出时再移回。`TrayClockWClass` 是任务栏子窗口，`SetWindowPos` 坐标相对父窗口，恢复位置前需用父窗口矩形换算。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
 
+### 注释与日志（中文）
+
+- **注释用中文**：每个 `.cs` 文件顶部写 2–6 行 `//` 文件头，说明该文件职责与不可违反的边界；每个类型上方 `/// <summary>` 一句职责；非自明的 public/internal 方法写 `///` 摘要（参数/返回值语义不显然时补 `<param>`/`<returns>`）；方法体内只解释「为什么这么做、边界值含义、外部 API 的坑」，不逐行复述代码，魔法数字标注单位与来源。
+- **注释密度**：按注释行 / 代码行计，目标 15%–20%；任何 300 行以上的文件不得少于 10 条注释；改代码必须同步改注释，注释与实现不一致按缺陷处理。
+- **日志统一入口**：只通过 `src/platform/AppLog.cs` 的 `Info/Warn/Error(module, message[, exception])` 记录，写 `%APPDATA%\GameClock\app.log`（单文件 1 MB、滚动保留 3 份），`Error` 额外写 `error.log`。`module` 用目录/职责短名（`Program`、`Settings`、`Weather`、`Taskbar`、`Clock`、`Reminder`…）。
+- **日志密度**：只在状态跃迁、外部副作用（写配置、注册表、网络请求、移动系统窗口）、失败回退、用户可见决策处各记 1 条；一次用户操作链路 2–4 条（开始 → 结果/失败），上层已记则下层不重复。**每秒 tick、每次重绘、每次滚动或鼠标移动不得记日志**，否则日志会淹没真正线索。
+- **日志内容**：消息用中文，必须带模块名与关键参数（城市、格式串、字号、位置等）；失败必须带异常；**禁止空 `catch`**，至少 `AppLog.Error` 加一句原因注释（日志自身写失败除外）。
+
 ## 6. 已知缺口
 
 | 缺口 | 影响 | 处理方向 |
@@ -74,7 +82,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 | 无自动测试工程 | 格式解析、日程触发等纯逻辑只能手工验证 | 新增测试工程或独立校验脚本，优先覆盖 `format/`、`reminders/` |
 | 无 `.sln`/`.csproj`、无 CI | 依赖本机 `csc.exe`，构建不可复现 | 迁移到 SDK 风格项目并加 CI |
 | 无 LICENSE | 无法对外分发 | 需要公开时补许可证并评估第三方依赖 |
-| 异常日志无 traceId，`Program.LogException` 等存在空 `catch` | 线上排障只能靠 `%APPDATA%\GameClock\error.log`，部分错误被吞 | 统一错误码与 traceId，空 `catch` 至少记录上下文 |
+| 日志无 traceId，同一次操作的多条记录只能按时间近似关联 | 排障时无法精确串联「设置应用 → 保存 → 重建窗口」链路 | 需要时给 `AppLog` 加 traceId 并透传到各模块 |
 | 单一命名空间未按模块拆分 | 类型靠目录区分，跨模块引用无编译期约束 | 规模扩大后再按模块拆命名空间并集中 using |
 
 ## 7. 相关文档
