@@ -96,7 +96,7 @@ namespace GameClock
         public const string ModeDotNet = "dotnet";
         public const string ModeToken = "token";
         public const string DefaultTokenFormat = "HH:ff:ss";
-        public const string DefaultTaskbarTokenFormat = "yyyy-mm-dd HH:ff:ss\nM D ddd rtm";
+        public const string DefaultTaskbarTokenFormat = "yyyy-mm-dd HH:ff:ss\nMD ddd rtm";
         public const int MaxFormatLength = 120;
         public const int MaxLines = 2;
 
