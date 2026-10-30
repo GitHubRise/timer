@@ -13,5 +13,5 @@
 
 ## 边界
 
-- 目录本身靠 `.gitkeep` 与 `.gitignore` 中的 `BuildInfo.g.cs` 规则保留；文件缺失时构建脚本会自动重建。
+- 目录本身靠本文件保留，`BuildInfo.g.cs` 由 `.gitignore` 忽略；生成文件缺失时构建脚本会自动重建。
 - 生成文件不得手工编辑；需要新增字段时改 `build.ps1` 的模板。
