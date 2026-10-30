@@ -234,7 +234,7 @@ GameClock = "完整路径\GameClock.exe"
 - `GameClock.exe`
 - `GameClock.exe.config`
 - `README.md`
-- `GameClock-v0.0.1.zip`
+- `GameClock-v0.0.2.zip`
 
 PowerShell 校验方式：
 
@@ -264,7 +264,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```text
 dist\GameClock.exe
 dist\GameClock.exe.config
-dist\GameClock-v0.0.1.zip
+dist\GameClock-v0.0.2.zip
 dist\SHA256SUMS.txt
 ```
 
@@ -341,7 +341,7 @@ assets/
 
 - 设置窗口底部和托盘/悬浮窗右键菜单均提供“**关于**”。
 - 关于窗口展示：
-  - 版本号：`0.0.1`
+  - 版本号：`0.0.2`
   - 编译号：构建时自动生成，格式为 `yyyyMMdd.N`
   - 编译时间
   - 运行环境
@@ -349,4 +349,4 @@ assets/
 
 ## 版本
 
-v0.0.1
+v0.0.2
