@@ -19,6 +19,9 @@ namespace GameClock
         private const string DefaultFont = "Consolas";
         private const double DefaultFontSize = 52.0;
         private const double DefaultOpacity = 0.92;
+        private const string DefaultTaskbarFont = "Microsoft YaHei UI";
+        private const double DefaultTaskbarFontSize = 10.0;
+        private const string DefaultTaskbarColor = "#000000";
 
         [DataMember(Name = "color")]
         public string ColorHex { get; set; }
@@ -67,6 +70,18 @@ namespace GameClock
 
         [DataMember(Name = "showTaskbarClock")]
         public bool ShowTaskbarClock { get; set; }
+
+        [DataMember(Name = "taskbarFontFamily")]
+        public string TaskbarFontFamilyName { get; set; }
+
+        [DataMember(Name = "taskbarFontSize")]
+        public double TaskbarFontSize { get; set; }
+
+        [DataMember(Name = "taskbarColor")]
+        public string TaskbarColorHex { get; set; }
+
+        [DataMember(Name = "taskbarFormat")]
+        public string TaskbarFormat { get; set; }
 
         [DataMember(Name = "currentMode")]
         public string CurrentMode { get; set; }
@@ -142,7 +157,7 @@ namespace GameClock
             ShowShadow = true;
             Text3D = false;
             TimeFormat = TimeFormatter.DefaultFormat;
-            FormatMode = FormatEngine.ModeDotNet;
+            FormatMode = FormatEngine.ModeToken;
             TokenTimeFormat = FormatEngine.DefaultTokenFormat;
             WeatherFormat = string.Empty;
             TimeZoneId = TimeZoneCatalog.DefaultId;
@@ -151,6 +166,10 @@ namespace GameClock
             StartWithWindows = false;
             ShowDesktopOverlay = true;
             ShowTaskbarClock = false;
+            TaskbarFontFamilyName = DefaultTaskbarFont;
+            TaskbarFontSize = DefaultTaskbarFontSize;
+            TaskbarColorHex = DefaultTaskbarColor;
+            TaskbarFormat = FormatEngine.DefaultTaskbarTokenFormat;
             CurrentMode = ReminderModes.Leisure;
             WeatherEnabled = true;
             WeatherCity = "北京";
@@ -179,6 +198,11 @@ namespace GameClock
         public Color WeatherColor
         {
             get { return ColorUtil.FromHex(WeatherColorHex); }
+        }
+
+        public Color TaskbarColor
+        {
+            get { return ColorUtil.FromHex(TaskbarColorHex); }
         }
 
         public AppSettings Clone()
@@ -258,6 +282,22 @@ namespace GameClock
             Color weatherColor = ColorUtil.FromHex(WeatherColorHex);
             WeatherColorHex = ColorUtil.ToHex(weatherColor);
             WeatherRefreshMinutes = WeatherRefreshOptions.Normalize(WeatherRefreshMinutes);
+
+            if (string.IsNullOrWhiteSpace(TaskbarFontFamilyName))
+            {
+                TaskbarFontFamilyName = DefaultTaskbarFont;
+            }
+            TaskbarFontFamilyName = TaskbarFontFamilyName.Trim();
+
+            if (double.IsNaN(TaskbarFontSize) || double.IsInfinity(TaskbarFontSize))
+            {
+                TaskbarFontSize = DefaultTaskbarFontSize;
+            }
+            TaskbarFontSize = Clamp(TaskbarFontSize, 7.0, 40.0);
+
+            Color taskbarColor = ColorUtil.FromHex(TaskbarColorHex);
+            TaskbarColorHex = ColorUtil.ToHex(taskbarColor);
+            TaskbarFormat = FormatEngine.NormalizeTokenFormat(TaskbarFormat);
 
             if (Reminders == null)
             {
