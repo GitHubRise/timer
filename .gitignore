@@ -13,3 +13,8 @@ obj/
 error.log
 temp/
 build/build.number
+
+# native build output
+build/obj/
+*.obj
+*.pdb

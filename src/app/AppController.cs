@@ -114,9 +114,17 @@ namespace GameClock
                 _taskbarClock.SetWeather(_settings.WeatherEnabled ? _weatherInfo : null);
                 _taskbarClock.Start();
             }
-            else if (_taskbarClock != null)
+            else
             {
-                _taskbarClock.Stop();
+                if (_taskbarClock != null)
+                {
+                    _taskbarClock.Stop();
+                }
+                else
+                {
+                    TrayClockInjector.ResetProcessCache();
+                    TrayClockInjector.Uninstall(TrayClockInjector.FindClock());
+                }
             }
         }
 

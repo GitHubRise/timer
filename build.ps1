@@ -120,6 +120,49 @@ if ($LASTEXITCODE -ne 0) {
 Copy-Item -LiteralPath $configPath -Destination (Join-Path $distDir 'GameClock.exe.config') -Force
 Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination (Join-Path $distDir 'README.md') -Force
 
+$nativeSource = Join-Path $root 'native\taskbar\GameClockTray.cpp'
+$nativeDll = Join-Path $distDir 'GameClockTray.dll'
+$vcvars = $null
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if (Test-Path -LiteralPath $vswhere) {
+    $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if ($vsPath) {
+        $candidate = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
+        if (Test-Path -LiteralPath $candidate) {
+            $vcvars = $candidate
+        }
+    }
+}
+if (-not $vcvars) {
+    $known = @(
+        'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat',
+        'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat'
+    )
+    foreach ($candidate in $known) {
+        if (Test-Path -LiteralPath $candidate) {
+            $vcvars = $candidate
+            break
+        }
+    }
+}
+if ($vcvars) {
+    $objDir = Join-Path $root 'build\obj'
+    if (-not (Test-Path -LiteralPath $objDir)) {
+        New-Item -ItemType Directory -Path $objDir | Out-Null
+    }
+    $objFile = Join-Path $objDir 'GameClockTray.obj'
+    Write-Host '正在编译 GameClockTray.dll（任务栏绘制组件）...'
+    $nativeCommand = 'call "' + $vcvars + '" >nul && cl /nologo /LD /MT /O2 /DUNICODE /D_UNICODE /EHsc "' +
+        $nativeSource + '" /Fo:"' + $objFile + '" /Fe:"' + $nativeDll +
+        '" /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib uxtheme.lib'
+    & cmd.exe /c $nativeCommand
+    if ($LASTEXITCODE -ne 0) {
+        throw "原生任务栏组件编译失败，退出码：$LASTEXITCODE"
+    }
+} else {
+    Write-Warning '未找到 Visual Studio C++ 工具链，跳过 GameClockTray.dll；任务栏时钟将不可用。'
+}
+
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
@@ -130,7 +173,15 @@ foreach ($legacyName in $legacyZips) {
         Remove-Item -LiteralPath $legacyZip -Force
     }
 }
-Compress-Archive -Path (Join-Path $distDir 'GameClock.exe'), (Join-Path $distDir 'GameClock.exe.config'), (Join-Path $distDir 'README.md') -DestinationPath $zipPath -Force
+$packageFiles = @(
+    (Join-Path $distDir 'GameClock.exe'),
+    (Join-Path $distDir 'GameClock.exe.config'),
+    (Join-Path $distDir 'README.md')
+)
+if (Test-Path -LiteralPath $nativeDll) {
+    $packageFiles += $nativeDll
+}
+Compress-Archive -Path $packageFiles -DestinationPath $zipPath -Force
 
 $checksumFiles = @(
     'GameClock.exe',
@@ -138,6 +189,9 @@ $checksumFiles = @(
     'README.md',
     'GameClock-v0.0.1.zip'
 )
+if (Test-Path -LiteralPath $nativeDll) {
+    $checksumFiles += 'GameClockTray.dll'
+}
 $checksumLines = @()
 foreach ($name in $checksumFiles) {
     $filePath = Join-Path $distDir $name
