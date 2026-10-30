@@ -15,7 +15,7 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 | `code-skeleton` | 采用：`src/` 按内容域分模块，禁止单文件包打天下；模块契约写入 `docs/` |
 | `skeleton` | 采用：每个目录一份 `Readme.md`；单目录 15 文件阈值；一级目录单一轴 |
 | `docs-numbering` | 采用：`docs/` 六位编号文档（L1） |
-| `git-workflow` | 采用：本地仓、无远端，`main` 直接提交；Conventional Commits 中文 subject |
+| `git-workflow` | 采用：GitHub 私有仓 `GitHubRise/timer`（`origin`），`main` 直接提交并推送；Conventional Commits 中文 subject |
 | `memory` / `temp` | 未在本项目启用；临时脚本放工作区 `temp/` |
 
 ## 3. 目录地图
@@ -46,7 +46,7 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-脚本行为：生成 `src/generated/BuildInfo.g.cs`（版本、`yyyyMMdd.N` 编译号、编译时间）→ 自增 `build/build.number` → 用 `csc.exe` 递归编译 `src/` 下全部 `.cs` → 输出 `dist/GameClock.exe`、复制 `GameClock.exe.config` 与 `README.md` → 打包 `dist/GameClock-v1.1.zip` 并写 `dist/SHA256SUMS.txt`。
+脚本行为：生成 `src/generated/BuildInfo.g.cs`（版本、`yyyyMMdd.N` 编译号、编译时间）→ 自增 `build/build.number` → 用 `csc.exe` 递归编译 `src/` 下全部 `.cs` → 输出 `dist/GameClock.exe`、复制 `GameClock.exe.config` 与 `README.md` → 打包 `dist/GameClock-v0.0.1.zip` 并写 `dist/SHA256SUMS.txt`。
 
 - 编译器：`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`，对应 C# 5 语法上限：不可用字符串内插、`?.`、`nameof`、表达式体成员等新语法。
 - 项目没有 `.sln`/`.csproj`；在 IDE 中新增文件后，必须以 `build.ps1` 的实际编译结果为准。

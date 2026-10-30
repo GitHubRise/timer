@@ -11,13 +11,13 @@ $iconPath = Join-Path $root 'assets\GameClock.ico'
 $manifestPath = Join-Path $root 'build\app.manifest'
 $configPath = Join-Path $root 'build\GameClock.exe.config'
 $exePath = Join-Path $distDir 'GameClock.exe'
-$zipPath = Join-Path $distDir 'GameClock-v1.1.zip'
+$zipPath = Join-Path $distDir 'GameClock-v0.0.1.zip'
 $checksumPath = Join-Path $distDir 'SHA256SUMS.txt'
 $buildNumberPath = Join-Path $root 'build\build.number'
 $generatedDir = Join-Path $sourceDir 'generated'
 $buildInfoPath = Join-Path $generatedDir 'BuildInfo.g.cs'
 $csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-$version = '1.1.0'
+$version = '0.0.1'
 
 if (-not (Test-Path -LiteralPath $csc)) {
     throw "找不到 .NET Framework 4.x 编译器：$csc"
@@ -123,9 +123,12 @@ Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination (Join-Path $di
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
-$legacyZip = Join-Path $distDir 'GameClock-v1.0.zip'
-if (Test-Path -LiteralPath $legacyZip) {
-    Remove-Item -LiteralPath $legacyZip -Force
+$legacyZips = @('GameClock-v1.0.zip', 'GameClock-v1.1.zip')
+foreach ($legacyName in $legacyZips) {
+    $legacyZip = Join-Path $distDir $legacyName
+    if (Test-Path -LiteralPath $legacyZip) {
+        Remove-Item -LiteralPath $legacyZip -Force
+    }
 }
 Compress-Archive -Path (Join-Path $distDir 'GameClock.exe'), (Join-Path $distDir 'GameClock.exe.config'), (Join-Path $distDir 'README.md') -DestinationPath $zipPath -Force
 
@@ -133,7 +136,7 @@ $checksumFiles = @(
     'GameClock.exe',
     'GameClock.exe.config',
     'README.md',
-    'GameClock-v1.1.zip'
+    'GameClock-v0.0.1.zip'
 )
 $checksumLines = @()
 foreach ($name in $checksumFiles) {
