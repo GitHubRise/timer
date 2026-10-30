@@ -39,7 +39,7 @@ namespace GameClock
             StackPanel timeZonePanel = new StackPanel();
             timeZonePanel.Children.Add(UiTheme.MakeSectionTitle("显示时区"));
             // 时区是全局唯一值：时间显示、周数计算与提醒触发时刻都读它，所以只在这一页设置。
-            TextBlock timeZoneHint = UiTheme.MakeText(
+            TextBlock timeZoneHint = SettingsUiHints.Hint(
                 "默认使用 UTC+08:00（中国标准时间）。切换后，时间、日期、周数和提醒触发都按所选时区计算。",
                 11,
                 UiTheme.TextMuted,
@@ -74,14 +74,18 @@ namespace GameClock
             timeZoneCard.Child = timeZonePanel;
             panel.Children.Add(timeZoneCard);
 
-            panel.Children.Add(BuildFormatScopeHint());
+            // 纯提示卡片：总开关关闭时整张卡片一起省略，否则只剩「各时钟的显示格式」标题悬在空卡片里。
+            if (SettingsUiHints.ShowHints)
+            {
+                panel.Children.Add(BuildFormatScopeHint());
+            }
 
             Border helpCard = UiTheme.MakeCard();
             // 帮助卡片：检索框 + 计数 + 可滚动变量表；条目由 FormatHelpCatalog 按当前语言生成。
             StackPanel helpPanel = new StackPanel();
             helpPanel.Children.Add(UiTheme.MakeSectionTitle("格式说明"));
             // 说明检索范围：变量名、说明、示例都能命中，用户不必记住精确写法。
-            TextBlock helpHint = UiTheme.MakeText(
+            TextBlock helpHint = SettingsUiHints.Hint(
                 "支持检索：输入变量名、说明或示例关键词。一行一个变量：格式：描述。示例预览：预览。",
                 11,
                 UiTheme.TextMuted,
@@ -111,7 +115,7 @@ namespace GameClock
             Border card = UiTheme.MakeCard();
             StackPanel panel = new StackPanel();
             panel.Children.Add(UiTheme.MakeSectionTitle("各时钟的显示格式"));
-            TextBlock hint = UiTheme.MakeText(
+            TextBlock hint = SettingsUiHints.Hint(
                 "桌面悬浮窗与任务栏时钟各自保存格式语言、常用格式与自定义格式，请到对应页签修改。本页只设置全局时区与变量说明。",
                 11,
                 UiTheme.TextMuted,
@@ -135,7 +139,7 @@ namespace GameClock
             // 卡片一：格式语言单选；两种语言的格式串分别保存在 TokenTimeFormat / TimeFormat。
             StackPanel presetPanel = new StackPanel();
             presetPanel.Children.Add(UiTheme.MakeSectionTitle("格式语言"));
-            TextBlock modeHint = UiTheme.MakeText(
+            TextBlock modeHint = SettingsUiHints.Hint(
                 "“兼容 .NET”沿用原有格式；“简洁变量”支持农历、干支、星期和天气变量。两种格式分别保存，切换不会丢失。",
                 11,
                 UiTheme.TextMuted,
@@ -156,7 +160,7 @@ namespace GameClock
             // 卡片二：内置常用格式；选中即填入下方输入框，再走统一校验。
             StackPanel presetsPanel = new StackPanel();
             presetsPanel.Children.Add(UiTheme.MakeSectionTitle("常用格式（内置）"));
-            TextBlock presetHint = UiTheme.MakeText(
+            TextBlock presetHint = SettingsUiHints.Hint(
                 "直接选择即可，不需要修改格式。示例使用当前日期时间生成。",
                 11,
                 UiTheme.TextMuted,
@@ -194,7 +198,7 @@ namespace GameClock
             Grid.SetColumn(newlineButton, 0);
 
             // 右对齐的弱提示：说明输入即预览，消除「要不要回车」的疑问。
-            TextBlock noNeedEnter = UiTheme.MakeText("输入即预览，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
+            TextBlock noNeedEnter = SettingsUiHints.Hint("输入即预览，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
             noNeedEnter.VerticalAlignment = VerticalAlignment.Center;
             noNeedEnter.HorizontalAlignment = HorizontalAlignment.Right;
             actions.Children.Add(noNeedEnter);
@@ -329,7 +333,7 @@ namespace GameClock
             // 空结果给出可直接照着输入的检索示例，比只显示「无匹配」更有用。
             if (shown == 0)
             {
-                TextBlock empty = UiTheme.MakeText(
+                TextBlock empty = SettingsUiHints.Hint(
                     "没有匹配的变量，试试 yyyy、mm、农历、星期。",
                     11.5,
                     UiTheme.TextMuted,
@@ -575,14 +579,14 @@ namespace GameClock
                     _working.TimeFormat = normalized;
                 }
                 _formatStatus.Text = "输入后自动预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。";
-                _formatStatus.Foreground = UiTheme.TextMuted;
+                SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.TextMuted);
                 UpdatePreview();
             }
             // 非法只提示不改值：不能让人打到一半就被清空，预览也保持上一次合法结果。
             else
             {
                 _formatStatus.Text = error;
-                _formatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.Accent);
                 _formatStatus.BringIntoView();
             }
 
@@ -660,7 +664,7 @@ namespace GameClock
             {
                 AppLog.Warn("Settings", "悬浮窗格式插入换行被拒绝：已存在一个换行，当前格式=" + _formatBox.Text + "。");
                 _formatStatus.Text = "最多只能插入一个换行。";
-                _formatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_formatStatus, UiTheme.Accent);
                 return;
             }
 

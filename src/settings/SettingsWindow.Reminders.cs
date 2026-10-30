@@ -39,7 +39,7 @@ namespace GameClock
             StackPanel stateContent = new StackPanel();
             stateContent.Children.Add(UiTheme.MakeSectionTitle("当前状态"));
             // 工作/娱乐状态只做提醒过滤，不影响日程；两者互斥，由同一组 RadioButton 保证。
-            TextBlock stateHint = UiTheme.MakeText(
+            TextBlock stateHint = SettingsUiHints.Hint(
                 // 说明「全部状态」始终生效：用户常误以为两个单选互斥会屏蔽第三种情况。
                 "标记你现在的状态。提醒会自动过滤：全部状态的提醒始终生效，仅工作和仅娱乐只会在对应状态触发。",
                 11,
@@ -77,7 +77,7 @@ namespace GameClock
             _reminderSoundCheck.Margin = new Thickness(0, 0, 0, 4);
             // 铃声走系统默认提示音，不打包音频资源，避免额外文件与授权问题。
             displayContent.Children.Add(_reminderSoundCheck);
-            TextBlock displayHint = UiTheme.MakeText(
+            TextBlock displayHint = SettingsUiHints.Hint(
                 "时长到点自动关闭；开启悬停检测后，鼠标停留在提醒卡片上满 3 秒也会关闭。闪烁和铃声用于提醒，可在上方调整。",
                 11,
                 UiTheme.TextMuted,
@@ -116,7 +116,7 @@ namespace GameClock
                 presetWrap.Children.Add(button);
             }
             presetPanel.Children.Add(presetWrap);
-            TextBlock presetHint = UiTheme.MakeText(
+            TextBlock presetHint = SettingsUiHints.Hint(
                 "添加后可以在下方修改时间、适用状态或内容，也可以停用或删除。提醒每天触发一次。",
                 11,
                 UiTheme.TextMuted,
@@ -542,8 +542,8 @@ namespace GameClock
 
             _reminderCountText.Text = _working.Reminders.Count.ToString(CultureInfo.InvariantCulture) + " 条";
 
-            // 空列表时隐藏滚动区并显示占位文案，避免出现一片空白区域让用户以为加载失败。
-            _reminderEmptyText.Visibility = _working.Reminders.Count == 0
+            // 空列表时隐藏滚动区并显示占位文案；提示总开关关闭时空态文案同样不显示。
+            _reminderEmptyText.Visibility = SettingsUiHints.ShowHints && _working.Reminders.Count == 0
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             _reminderScroll.Visibility = _working.Reminders.Count == 0

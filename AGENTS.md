@@ -66,6 +66,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 时区同步统一走 `TimeZoneCatalog.GetSystemId()`（内部读 `TimeZoneInfo.Local`），设置窗口不得直接读 `TimeZoneInfo.Local`；「同步系统时区」只改编辑副本，点「应用」后落盘。
 - 任务栏覆盖窗**不得隐藏** `TrayClockWClass`（会触发任务栏重排、托盘图标移位）；应把系统时钟移出任务栏保留占位，退出时再移回。`TrayClockWClass` 是任务栏子窗口，`SetWindowPos` 坐标相对父窗口，恢复位置前需用父窗口矩形换算。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
+- 设置界面的灰色说明文字统一由 `src/settings/SettingsUiHints.cs` 的 `SettingsUiHints.ShowHints` 控制（默认 `false`，即关闭）；新增提示必须用 `SettingsUiHints.Hint(...)` 创建，状态行改色用 `SettingsUiHints.SetStatusColor(...)`，不要直接 `UiTheme.MakeText(... TextMuted ...)`。
 
 ### 注释与日志（中文）
 

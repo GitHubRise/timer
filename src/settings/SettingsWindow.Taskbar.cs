@@ -32,7 +32,7 @@ namespace GameClock
             switchPanel.Children.Add(UiTheme.MakeSectionTitle("任务栏时钟"));
             // 真正的覆盖/恢复动作发生在应用设置后由控制器执行，这里只改开关值。
             switchPanel.Children.Add(_taskbarClockCheck);
-            TextBlock switchHint = UiTheme.MakeText(
+            TextBlock switchHint = SettingsUiHints.Hint(
                 "开启后覆盖系统任务栏的时间区域，并把系统时钟暂移出任务栏；关闭后立即恢复。下方的字体、颜色与格式只作用于任务栏时钟。",
                 11,
                 UiTheme.TextMuted,
@@ -49,7 +49,7 @@ namespace GameClock
             Border fontCard = UiTheme.MakeCard();
             StackPanel fontPanel = new StackPanel();
             fontPanel.Children.Add(UiTheme.MakeSectionTitle("字体与颜色"));
-            TextBlock fontHint = UiTheme.MakeText(
+            TextBlock fontHint = SettingsUiHints.Hint(
                 "任务栏时钟与桌面悬浮窗各自保存字体、字号和颜色，互不影响。",
                 11,
                 UiTheme.TextMuted,
@@ -88,7 +88,7 @@ namespace GameClock
             Border modeCard = UiTheme.MakeCard();
             StackPanel modePanel = new StackPanel();
             modePanel.Children.Add(UiTheme.MakeSectionTitle("格式语言"));
-            TextBlock modeHint = UiTheme.MakeText(
+            TextBlock modeHint = SettingsUiHints.Hint(
                 "“兼容 .NET”使用传统日期格式；“简洁变量”支持农历、干支、星期和天气变量。两种格式分别保存，切换不会丢失。",
                 11,
                 UiTheme.TextMuted,
@@ -109,7 +109,7 @@ namespace GameClock
             Border presetsCard = UiTheme.MakeCard();
             StackPanel presetsPanel = new StackPanel();
             presetsPanel.Children.Add(UiTheme.MakeSectionTitle("常用格式（内置）"));
-            TextBlock presetHint = UiTheme.MakeText(
+            TextBlock presetHint = SettingsUiHints.Hint(
                 "直接选择即可，不需要修改格式。示例使用当前日期时间生成。",
                 11,
                 UiTheme.TextMuted,
@@ -146,7 +146,7 @@ namespace GameClock
             actions.Children.Add(newlineButton);
             Grid.SetColumn(newlineButton, 0);
 
-            TextBlock hintRight = UiTheme.MakeText("输入即更新，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
+            TextBlock hintRight = SettingsUiHints.Hint("输入即更新，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
             hintRight.VerticalAlignment = VerticalAlignment.Center;
             hintRight.HorizontalAlignment = HorizontalAlignment.Right;
             actions.Children.Add(hintRight);
@@ -178,7 +178,7 @@ namespace GameClock
             row.Children.Add(_taskbarColorBox);
 
             // 提示文案里的 #FFFFFF 是深色任务栏上的常用值，写出来比让用户自己猜十六进制更省事。
-            TextBlock hint = UiTheme.MakeText("#RRGGBB，例如 #FFFFFF 适合深色任务栏。", 11, UiTheme.TextMuted, FontWeights.Normal);
+            TextBlock hint = SettingsUiHints.Hint("#RRGGBB，例如 #FFFFFF 适合深色任务栏。", 11, UiTheme.TextMuted, FontWeights.Normal);
             hint.VerticalAlignment = VerticalAlignment.Center;
             hint.Margin = new Thickness(10, 0, 0, 0);
             row.Children.Add(hint);
@@ -375,13 +375,13 @@ namespace GameClock
                     _working.TaskbarDotNetFormat = normalized;
                 }
                 _taskbarFormatStatus.Text = "格式有效，保存后应用到任务栏时钟。";
-                _taskbarFormatStatus.Foreground = UiTheme.TextMuted;
+                SettingsUiHints.SetStatusColor(_taskbarFormatStatus, UiTheme.TextMuted);
             }
             else
             {
                 // 逐字输入都会走到这里，只回写状态文本、不记日志，否则打字过程会把日志刷满。
                 _taskbarFormatStatus.Text = error;
-                _taskbarFormatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_taskbarFormatStatus, UiTheme.Accent);
             }
 
             UpdateTaskbarFormatComboSelection();
@@ -454,7 +454,7 @@ namespace GameClock
             if (TimeFormatter.CountNewlines(_taskbarFormatBox.Text) >= 1)
             {
                 _taskbarFormatStatus.Text = "最多只能插入一个换行。";
-                _taskbarFormatStatus.Foreground = UiTheme.Accent;
+                SettingsUiHints.SetStatusColor(_taskbarFormatStatus, UiTheme.Accent);
                 AppLog.Warn("Taskbar", "任务栏格式插入换行被拒绝：已存在一个换行，当前格式=" + _taskbarFormatBox.Text + "。");
                 return;
             }

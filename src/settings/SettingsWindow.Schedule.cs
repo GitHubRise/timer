@@ -40,7 +40,7 @@ namespace GameClock
             StackPanel toolbar = new StackPanel();
             toolbar.Children.Add(UiTheme.MakeSectionTitle("日程列表"));
             // 日程项的增删改都以对话框完成，列表本身只读，避免行内编辑时误改日期。
-            TextBlock intro = UiTheme.MakeText(
+            TextBlock intro = SettingsUiHints.Hint(
                 "生日、纪念日、会议、机票等重要约定集中展示。添加或编辑时使用弹框。",
                 11,
                 UiTheme.TextMuted,
@@ -281,7 +281,8 @@ namespace GameClock
                 _scheduleEmptyText.Text = "没有匹配的日程，换个关键词试试。";
             }
 
-            _scheduleEmptyText.Visibility = visible == 0
+            // 提示总开关关闭时，空态文案同样不显示，只保留列表区域本身。
+            _scheduleEmptyText.Visibility = SettingsUiHints.ShowHints && visible == 0
             // 空态文案与滚动区互斥：同时显示会看到一块空白列表框。
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -498,7 +499,7 @@ namespace GameClock
         private void SetScheduleSuccess(string text)
         {
             _scheduleStatus.Text = text;
-            _scheduleStatus.Foreground = UiTheme.Success;
+            SettingsUiHints.SetStatusColor(_scheduleStatus, UiTheme.Success);
             // 成功统一用 Success 绿；失败分支由调用方直接写 _scheduleStatus 并置强调色。
         }
 

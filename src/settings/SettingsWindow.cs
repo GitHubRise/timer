@@ -370,7 +370,7 @@ namespace GameClock
             AutomationProperties.SetName(_taskbarFormatBox, "任务栏时钟格式");
 
             // 任务栏格式状态文案：默认灰字提示语法，校验失败时由 CommitAll 改成强调色错误。
-            _taskbarFormatStatus = UiTheme.MakeText(
+            _taskbarFormatStatus = SettingsUiHints.Hint(
                 "简洁变量格式，支持两行；任务栏空间不足时会自动缩小字号。",
                 11,
                 UiTheme.TextMuted,
@@ -422,7 +422,7 @@ namespace GameClock
             AutomationProperties.SetAutomationId(_taskbarTokenFormatRadio, "TaskbarTokenFormatRadio");
 
             // 提示文案单独一行放在输入框上方，内容随格式语言在 LoadControlsFromWorking 里对调。
-            _taskbarFormatHintText = UiTheme.MakeText(
+            _taskbarFormatHintText = SettingsUiHints.Hint(
                 "支持简洁变量。输入时实时更新，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。",
                 11,
                 UiTheme.TextMuted,
@@ -460,7 +460,7 @@ namespace GameClock
             AutomationProperties.SetAutomationId(_weatherTestButton, "TestWeatherButton");
 
             // 测试状态文本：用版本号 _weatherTestVersion 丢弃过期回调，防止旧查询覆盖新结果。
-            _weatherTestStatus = UiTheme.MakeText(
+            _weatherTestStatus = SettingsUiHints.Hint(
                 "输入城市名后，可先测试查询是否成功；不会修改正在显示的天气。",
                 11,
                 UiTheme.TextMuted,
@@ -562,12 +562,12 @@ namespace GameClock
             AutomationProperties.SetName(_formatBox, "自定义时间格式");
 
             // 校验状态默认灰字，校验失败时 CommitAll 会改成强调色并把窗口带到本页签。
-            _formatStatus = UiTheme.MakeText("输入后自动预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。", 11, UiTheme.TextMuted, FontWeights.Normal);
+            _formatStatus = SettingsUiHints.Hint("输入后自动预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。", 11, UiTheme.TextMuted, FontWeights.Normal);
             _formatStatus.Margin = new Thickness(0, 6, 0, 0);
             _formatStatus.TextWrapping = TextWrapping.Wrap;
 
             // 语法提示：内容随当前格式语言变化（.NET / 简洁变量），由 LoadControlsFromWorking 同步。
-            _formatHintText = UiTheme.MakeText(
+            _formatHintText = SettingsUiHints.Hint(
                 "支持 .NET 日期格式。输入时实时预览，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。",
                 11,
                 UiTheme.TextMuted,
@@ -638,7 +638,7 @@ namespace GameClock
             AutomationProperties.SetName(_weatherFormatBox, "天气格式");
 
             // 天气格式状态行：默认灰字说明留空语义，校验失败时改成强调色并跳到本页签。
-            _weatherFormatStatus = UiTheme.MakeText(
+            _weatherFormatStatus = SettingsUiHints.Hint(
                 "留空使用默认格式：城市 · 天气 · 温度 · 今日高低温。",
                 11,
                 UiTheme.TextMuted,
@@ -789,7 +789,7 @@ namespace GameClock
             _scheduleFilterBox.TextChanged += OnScheduleFilterChanged;
 
             // 筛选提示：说明匹配字段，避免用户以为只能搜标题。
-            _scheduleFilterHint = UiTheme.MakeText(
+            _scheduleFilterHint = SettingsUiHints.Hint(
                 "输入关键词筛选日程，支持标题、类型、日期和备注。",
                 11,
                 UiTheme.TextMuted,
@@ -797,7 +797,7 @@ namespace GameClock
             _scheduleFilterHint.Margin = new Thickness(0, 5, 0, 0);
 
             // 日程状态：说明触发时区与“操作立即反映到列表”，不涉及保存时机。
-            _scheduleStatus = UiTheme.MakeText(
+            _scheduleStatus = SettingsUiHints.Hint(
                 "日程按当前显示时区触发；启用或停用、编辑、删除会立即反映到列表。",
                 11,
                 UiTheme.TextMuted,

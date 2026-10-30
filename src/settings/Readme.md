@@ -9,6 +9,7 @@
 - `SettingsWindow.Shell.cs`：页签容器、标题栏、关闭与键盘行为。
 - `SettingsWindow.Chrome.cs`：窗口外观、行为、透明度、颜色与预览刷新。
 - `SettingsWindow.Appearance.cs`、`.Taskbar.cs`、`.Format.cs`、`.Reminders.cs`、`.Schedule.cs`、`.Weather.cs`：各页签的构建与事件；`.Taskbar.cs` 管任务栏独立字体、颜色、格式语言与两行格式；`.Format.cs` 的“全局时间格式”页只放时区（含「同步系统时区」按钮）与变量说明，并提供悬浮窗格式区 `BuildOverlayFormatSection()`。
+- `SettingsUiHints.cs`：设置界面灰色提示的总开关（`ShowHints`）与工厂方法；关闭时提示文字折叠，不占布局。
 - `ScheduleEditorWindow.cs`：日程添加/编辑弹框。
 - `AboutWindow.cs`：版本、编译号、运行环境。
 
@@ -26,3 +27,4 @@
 - 格式语言与常用/自定义格式按显示位置各存一份：悬浮窗写 `FormatMode`/`TimeFormat`/`TokenTimeFormat`，任务栏写 `TaskbarFormatMode`/`TaskbarDotNetFormat`/`TaskbarFormat`；`TaskbarFormat` 只存简洁变量、`TaskbarDotNetFormat` 只存 .NET 格式，两者与 `TaskbarFormatMode` 同步切换。
 - `SettingsWindow` 以 `partial` 按页签拆分，新增成员放进对应分部文件；主文件只保留字段、构造与公共骨架。
 - 分区文件必须复用主文件的 using 集，避免同类型在不同文件里解析到不同别名。
+- 设置界面的灰色说明文字只能通过 `SettingsUiHints.Hint(...)` 创建，受 `SettingsUiHints.ShowHints` 统一控制（默认关闭，提示折叠不占位）；格式校验、天气测试等状态行改色走 `SettingsUiHints.SetStatusColor(...)`，灰色引导语随开关隐藏，结果色（强调/成功/失败）始终显示。新增提示不要直接调 `UiTheme.MakeText(... TextMuted ...)`，否则开关管不到。
