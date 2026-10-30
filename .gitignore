@@ -12,3 +12,4 @@ obj/
 # 运行时日志与临时文件
 error.log
 temp/
+build/build.number

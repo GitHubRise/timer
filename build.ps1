@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [switch]$Clean
 )
@@ -8,13 +8,14 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $sourceDir = Join-Path $root 'src'
 $distDir = Join-Path $root 'dist'
 $iconPath = Join-Path $root 'assets\GameClock.ico'
-$manifestPath = Join-Path $root 'app.manifest'
-$configPath = Join-Path $root 'GameClock.exe.config'
+$manifestPath = Join-Path $root 'build\app.manifest'
+$configPath = Join-Path $root 'build\GameClock.exe.config'
 $exePath = Join-Path $distDir 'GameClock.exe'
 $zipPath = Join-Path $distDir 'GameClock-v1.1.zip'
 $checksumPath = Join-Path $distDir 'SHA256SUMS.txt'
-$buildNumberPath = Join-Path $root 'build.number'
-$buildInfoPath = Join-Path $sourceDir 'BuildInfo.g.cs'
+$buildNumberPath = Join-Path $root 'build\build.number'
+$generatedDir = Join-Path $sourceDir 'generated'
+$buildInfoPath = Join-Path $generatedDir 'BuildInfo.g.cs'
 $csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $version = '1.1.0'
 
@@ -33,6 +34,9 @@ if ($Clean -and (Test-Path -LiteralPath $distDir)) {
 }
 if (-not (Test-Path -LiteralPath $distDir)) {
     New-Item -ItemType Directory -Path $distDir | Out-Null
+}
+if (-not (Test-Path -LiteralPath $generatedDir)) {
+    New-Item -ItemType Directory -Path $generatedDir | Out-Null
 }
 
 $buildCounter = 0
@@ -81,7 +85,7 @@ $references = @(
     (Join-Path $wpfDir 'UIAutomationTypes.dll')
 )
 
-$sources = @(Get-ChildItem -LiteralPath $sourceDir -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName })
+$sources = @(Get-ChildItem -LiteralPath $sourceDir -Recurse -Filter '*.cs' | Sort-Object FullName | ForEach-Object { $_.FullName })
 if ($sources.Count -eq 0) {
     throw "src 目录中没有 .cs 源文件。"
 }

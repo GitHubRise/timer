@@ -254,27 +254,42 @@ C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 
 ```text
 src/
-  Program.cs             单实例、异常处理、启动
-  AppController.cs       窗口/托盘/菜单/天气/提醒调度
-  ClockWindow.cs         置顶透明时钟窗口、拖动、天气行、提醒展示
-  SettingsWindow.cs      设置窗口、日程列表与筛选
-  ScheduleEditorWindow.cs 日程添加/编辑弹框
-  AboutWindow.cs         关于窗口（版本号、编译号）
-  BuildInfo.g.cs         构建时生成的版本与编译号
-  AppSettings.cs         设置模型、持久化、颜色工具
-  TimeFormatter.cs       时间格式、ISO 周数、内置格式
-  FormatEngine.cs        简洁变量解析、农历/干支、天气变量渲染
-  FormatHelpCatalog.cs   格式说明目录、描述与示例预览
-  Reminder.cs            提醒模型、工作/娱乐状态、内置提醒
-  Schedule.cs            生日/纪念日/会议/机票日程与触发计算
-  SvgIcons.cs            SVG 矢量图标路径
-  WeatherService.cs      Open-Meteo 地理编码与天气查询
-  OverlayMenu.cs         托盘与时钟共用的右键菜单
-  AutoStartManager.cs    开机自启注册表
-  LayeredText.cs         阴影/3D 分层文字
-  UiTheme.cs             暗色 UI、按钮、下拉框、页签
-  ModernScrollBar.cs     自定义滚动条
-  NativeMethods.cs       Win32 置顶/穿透
+  app/          入口、控制器、托盘与共用菜单
+    Program.cs             单实例、异常处理、启动
+    AppController.cs       窗口/托盘/菜单/天气/提醒调度
+    OverlayMenu.cs         托盘与时钟共用的右键菜单
+  clock/        悬浮窗与分层文字
+    ClockWindow.cs         置顶透明时钟窗口、拖动、天气行、提醒展示
+    LayeredText.cs         阴影/3D 分层文字
+  format/       时间格式与时区
+    TimeFormatter.cs       时间格式、ISO 周数、内置格式
+    FormatEngine.cs        简洁变量解析、农历/干支、天气变量渲染
+    FormatHelpCatalog.cs   格式说明目录、描述与示例预览
+    TimeZoneCatalog.cs     时区目录与选择
+  platform/     系统集成
+    NativeMethods.cs       Win32 置顶/穿透
+    AutoStartManager.cs    开机自启注册表
+  reminders/    提醒与日程
+    Reminder.cs            提醒模型、工作/娱乐状态、内置提醒
+    Schedule.cs            生日/纪念日/会议/机票日程与触发计算
+    AlarmSound.cs          提醒提示音
+  settings/     设置界面
+    AppSettings.cs         设置模型、持久化、颜色工具
+    SettingsWindow.cs      设置窗口（按页签拆分）
+    ScheduleEditorWindow.cs 日程添加/编辑弹框
+    AboutWindow.cs         关于窗口（版本号、编译号）
+  theme/        UI 主题与控件
+    UiTheme.cs             暗色 UI、按钮、下拉框、页签
+    ModernScrollBar.cs     自定义滚动条
+    FontCatalog.cs         字体目录
+    SvgIcons.cs            SVG 矢量图标路径
+  weather/      天气服务
+    WeatherService.cs      Open-Meteo 地理编码与天气查询
+  generated/    构建时生成的版本信息（不入库）
+build/
+  app.manifest          应用清单
+  GameClock.exe.config  运行配置
+  build.number          编译号计数（本机状态，不入库）
 assets/
   GameClock.ico          蓝色科技表盘图标
 ```
@@ -293,7 +308,7 @@ assets/
   - 编译号：构建时自动生成，格式为 `yyyyMMdd.N`
   - 编译时间
   - 运行环境
-- 版本和编译号由 `build.ps1` 每次编译时写入 `src/BuildInfo.g.cs`，编译号计数器保存在 `build.number`。
+- 版本和编译号由 `build.ps1` 每次编译时写入 `src/generated/BuildInfo.g.cs`，编译号计数器保存在 `build/build.number`。
 
 ## 版本
 
