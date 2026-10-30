@@ -294,6 +294,13 @@ assets/
   GameClock.ico          蓝色科技表盘图标
 ```
 
+## 项目文档
+
+- 维护入口（规范登记、目录地图、构建与已知缺口）：[AGENTS.md](AGENTS.md)
+- 文档总索引：[docs/000000-全库总索引.md](docs/000000-全库总索引.md)
+- 架构与模块契约：[docs/300001-系统架构与模块契约.md](docs/300001-系统架构与模块契约.md)
+- 界面截图：[docs/images/](docs/images/)
+
 ## 第三方服务
 
 - 天气、空气质量与地理编码：[Open-Meteo](https://open-meteo.com/)（免费公共 API，无需 Key）。
