@@ -20,9 +20,11 @@ namespace GameClock
     internal sealed partial class SettingsWindow : Window
     {
         private const int TabAppearance = 0;
-        private const int TabFormat = 1;
-        private const int TabReminders = 2;
-        private const int TabWeather = 4;
+        private const int TabTaskbar = 1;
+        private const int TabFormat = 2;
+        private const int TabReminders = 3;
+        private const int TabSchedule = 4;
+        private const int TabWeather = 5;
 
         private readonly AppSettings _working;
         private readonly LayeredText _previewText;
@@ -42,6 +44,13 @@ namespace GameClock
         private readonly CheckBox _startWithWindowsCheck;
         private readonly CheckBox _desktopOverlayCheck;
         private readonly CheckBox _taskbarClockCheck;
+        private readonly ComboBox _taskbarFontCombo;
+        private readonly Slider _taskbarSizeSlider;
+        private readonly TextBlock _taskbarSizeValueText;
+        private readonly Border _taskbarColorSwatch;
+        private readonly TextBox _taskbarColorBox;
+        private readonly TextBox _taskbarFormatBox;
+        private readonly TextBlock _taskbarFormatStatus;
         private readonly CheckBox _weatherEnabledCheck;
         private readonly TextBox _weatherCityBox;
         private readonly Button _weatherTestButton;
@@ -214,6 +223,58 @@ namespace GameClock
                 "TaskbarClockCheck",
                 "把时间显示在任务栏时钟位置；开启期间会暂时隐藏系统自带时间，两者至少保留一个。");
 
+            _taskbarFontCombo = new ComboBox();
+            UiTheme.ApplyComboBoxStyle(_taskbarFontCombo);
+            _taskbarFontCombo.ItemsSource = _fontChoices;
+            _taskbarFontCombo.ItemTemplate = CreateFontItemTemplate();
+            _taskbarFontCombo.MaxDropDownHeight = 320;
+            AutomationProperties.SetAutomationId(_taskbarFontCombo, "TaskbarFontCombo");
+            AutomationProperties.SetName(_taskbarFontCombo, "任务栏时钟字体");
+
+            _taskbarSizeSlider = CreateSlider(7, 40, 10, "TaskbarFontSizeSlider");
+            _taskbarSizeValueText = UiTheme.MakeText("10 px", 12.5, UiTheme.TextPrimary, FontWeights.SemiBold);
+            _taskbarSizeValueText.HorizontalAlignment = HorizontalAlignment.Right;
+
+            _taskbarColorSwatch = new Border();
+            _taskbarColorSwatch.Width = 26;
+            _taskbarColorSwatch.Height = 26;
+            _taskbarColorSwatch.CornerRadius = new CornerRadius(7);
+            _taskbarColorSwatch.BorderThickness = new Thickness(1);
+            _taskbarColorSwatch.BorderBrush = UiTheme.FieldBorder;
+            _taskbarColorSwatch.VerticalAlignment = VerticalAlignment.Center;
+
+            _taskbarColorBox = new TextBox();
+            UiTheme.ApplyTextBoxStyle(_taskbarColorBox);
+            _taskbarColorBox.Text = "#000000";
+            _taskbarColorBox.MaxLength = 9;
+            _taskbarColorBox.Width = 120;
+            _taskbarColorBox.Height = 32;
+            _taskbarColorBox.Margin = new Thickness(10, 0, 0, 0);
+            _taskbarColorBox.FontFamily = new FontFamily("Consolas");
+            AutomationProperties.SetAutomationId(_taskbarColorBox, "TaskbarColorBox");
+            AutomationProperties.SetName(_taskbarColorBox, "任务栏时钟颜色");
+
+            _taskbarFormatBox = new TextBox();
+            UiTheme.ApplyTextBoxStyle(_taskbarFormatBox);
+            _taskbarFormatBox.FontFamily = new FontFamily("Consolas");
+            _taskbarFormatBox.FontSize = 13;
+            _taskbarFormatBox.Height = 62;
+            _taskbarFormatBox.AcceptsReturn = true;
+            _taskbarFormatBox.MaxLines = 2;
+            _taskbarFormatBox.TextWrapping = TextWrapping.Wrap;
+            _taskbarFormatBox.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+            _taskbarFormatBox.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+            AutomationProperties.SetAutomationId(_taskbarFormatBox, "TaskbarFormatBox");
+            AutomationProperties.SetName(_taskbarFormatBox, "任务栏时钟格式");
+
+            _taskbarFormatStatus = UiTheme.MakeText(
+                "简洁变量格式，支持两行；任务栏空间不足时会自动缩小字号。",
+                11,
+                UiTheme.TextMuted,
+                FontWeights.Normal);
+            _taskbarFormatStatus.Margin = new Thickness(0, 6, 0, 0);
+            _taskbarFormatStatus.TextWrapping = TextWrapping.Wrap;
+
             _weatherEnabledCheck = CreateCheckBox(
                 "显示天气预报（默认开启）",
                 true,
@@ -348,13 +409,13 @@ namespace GameClock
 
             _formatHelpPanel = new StackPanel();
             _formatHelpScroll = new ScrollViewer();
-            _formatHelpScroll.MaxHeight = 320;
-            _formatHelpScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+            _formatHelpScroll.MaxHeight = double.PositiveInfinity;
+            _formatHelpScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
             _formatHelpScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
             _formatHelpScroll.Content = _formatHelpPanel;
 
             _dotNetFormatRadio = new RadioButton();
-            _dotNetFormatRadio.Content = "兼容 .NET（默认）";
+            _dotNetFormatRadio.Content = "兼容 .NET";
             _dotNetFormatRadio.GroupName = "FormatMode";
             _dotNetFormatRadio.Foreground = UiTheme.TextPrimary;
             _dotNetFormatRadio.FontSize = 13;
@@ -365,7 +426,7 @@ namespace GameClock
             AutomationProperties.SetAutomationId(_dotNetFormatRadio, "DotNetFormatRadio");
 
             _tokenFormatRadio = new RadioButton();
-            _tokenFormatRadio.Content = "简洁变量";
+            _tokenFormatRadio.Content = "简洁变量（默认）";
             _tokenFormatRadio.GroupName = "FormatMode";
             _tokenFormatRadio.Foreground = UiTheme.TextPrimary;
             _tokenFormatRadio.FontSize = 13;

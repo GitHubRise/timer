@@ -85,6 +85,7 @@ namespace GameClock
             Grid.SetRow(previewCard, 1);
 
             _tabs.Items.Add(CreateTab("外观", BuildAppearanceTab()));
+            _tabs.Items.Add(CreateTab("任务栏", BuildTaskbarTab()));
             _tabs.Items.Add(CreateTab("时间格式", BuildFormatTab()));
             _tabs.Items.Add(CreateTab("定时提醒", BuildRemindersTab()));
             _tabs.Items.Add(CreateTab("日程", BuildScheduleTab()));
@@ -120,6 +121,10 @@ namespace GameClock
             _desktopOverlayCheck.Unchecked += OnDisplaySurfaceChanged;
             _taskbarClockCheck.Checked += OnDisplaySurfaceChanged;
             _taskbarClockCheck.Unchecked += OnDisplaySurfaceChanged;
+            _taskbarFontCombo.SelectionChanged += OnTaskbarFontChanged;
+            _taskbarSizeSlider.ValueChanged += OnTaskbarSizeChanged;
+            _taskbarColorBox.TextChanged += OnTaskbarColorChanged;
+            _taskbarFormatBox.TextChanged += OnTaskbarFormatChanged;
             _formatCombo.SelectionChanged += OnFormatPresetChanged;
             _formatBox.TextChanged += OnFormatTextChanged;
             _formatBox.PreviewKeyDown += OnFormatKeyDown;
@@ -173,6 +178,24 @@ namespace GameClock
             _startWithWindowsCheck.IsChecked = _working.StartWithWindows;
             _desktopOverlayCheck.IsChecked = _working.ShowDesktopOverlay;
             _taskbarClockCheck.IsChecked = _working.ShowTaskbarClock;
+
+            FontChoice taskbarFont = FontCatalog.FindChoice(_fontChoices, _working.TaskbarFontFamilyName);
+            if (taskbarFont == null)
+            {
+                taskbarFont = FontCatalog.FindChoice(_fontChoices, "Microsoft YaHei UI");
+            }
+            if (taskbarFont == null)
+            {
+                taskbarFont = FontCatalog.FindChoice(_fontChoices, FontCatalog.DefaultFont);
+            }
+            _taskbarFontCombo.SelectedItem = taskbarFont;
+            _taskbarSizeSlider.Value = _working.TaskbarFontSize;
+            _taskbarSizeValueText.Text = ((int)Math.Round(_working.TaskbarFontSize)).ToString(CultureInfo.InvariantCulture) + " px";
+            _taskbarColorBox.Text = _working.TaskbarColorHex;
+            _taskbarFormatBox.Text = _working.TaskbarFormat;
+            UpdateTaskbarColorUi();
+            _taskbarFormatStatus.Text = "简洁变量格式，支持两行；任务栏空间不足时会自动缩小字号。";
+            _taskbarFormatStatus.Foreground = UiTheme.TextMuted;
 
             string mode = ReminderModes.Normalize(_working.CurrentMode);
             _workModeRadio.IsChecked = mode == ReminderModes.Work;
@@ -398,6 +421,25 @@ namespace GameClock
                 _working.WeatherFormat = string.Empty;
             }
 
+            string taskbarFormatText = (_taskbarFormatBox.Text ?? string.Empty).Trim();
+            string normalizedTaskbarFormat;
+            string taskbarFormatError;
+            if (!FormatEngine.TryNormalizeTokenFormat(
+                taskbarFormatText,
+                true,
+                out normalizedTaskbarFormat,
+                out taskbarFormatError))
+            {
+                _taskbarFormatStatus.Text = taskbarFormatError;
+                _taskbarFormatStatus.Foreground = UiTheme.Accent;
+                _tabs.SelectedIndex = TabTaskbar;
+                _taskbarFormatStatus.BringIntoView();
+                _taskbarFormatBox.Focus();
+                error = taskbarFormatError;
+                return false;
+            }
+            _working.TaskbarFormat = normalizedTaskbarFormat;
+
             TimeZoneChoice timeZoneChoice = _timeZoneCombo.SelectedItem as TimeZoneChoice;
             if (timeZoneChoice != null)
             {
@@ -420,6 +462,13 @@ namespace GameClock
             _working.StartWithWindows = _startWithWindowsCheck.IsChecked == true;
             _working.ShowDesktopOverlay = _desktopOverlayCheck.IsChecked == true;
             _working.ShowTaskbarClock = _taskbarClockCheck.IsChecked == true;
+            FontChoice taskbarFont = _taskbarFontCombo.SelectedItem as FontChoice;
+            if (taskbarFont != null)
+            {
+                _working.TaskbarFontFamilyName = taskbarFont.Name;
+            }
+            _working.TaskbarFontSize = _taskbarSizeSlider.Value;
+            _working.TaskbarColorHex = ColorUtil.ToHex(ColorUtil.FromHex(_taskbarColorBox.Text));
             _working.CurrentMode = _workModeRadio.IsChecked == true
                 ? ReminderModes.Work
                 : ReminderModes.Leisure;
