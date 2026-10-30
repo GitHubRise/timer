@@ -1,4 +1,4 @@
-# taskbar — 任务栏时钟绘制组件
+﻿# taskbar — 任务栏时钟绘制组件
 
 `GameClockTray.dll`：注入当前用户的 `explorer.exe`，子类化 `TrayClockWClass`，用 GDI 绘制两行时间/日期文本。
 
@@ -10,7 +10,7 @@
 
 1. 加载后起线程查找 `Shell_TrayWnd` → `TrayNotifyWnd` → `TrayClockWClass`，`SetWindowLongPtrW` 子类化。
 2. C# 端每秒发送 `WM_COPYDATA`（`dwData = 'GCT1'`，656 字节 `GCTCONFIG`），DLL 复制配置、启动 1 秒重绘计时器。
-3. `WM_PAINT` 采样时钟左侧背景色、按对比度自动取白/黑文字、按客户区宽度缩小字号后绘制两行。
+3. `WM_PAINT` 用系统原生字体绘制两行，文字颜色按系统主题取（深色白、浅色黑），宽度不足时先压缩字距、仍不足再缩小字号。
 4. 15 秒收不到配置、收到 `WM_APP+1`（卸载）或窗口销毁时恢复原 WndProc 与原生绘制。
 
 ## 边界

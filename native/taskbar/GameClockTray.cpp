@@ -16,6 +16,8 @@
 #include <windows.h>
 #include <uxtheme.h>
 
+#define GCT_KEY_COLOR RGB(255, 0, 255)
+
 #define GCT_CONFIG_MAGIC 0x31544347u // 'G' | 'C' << 8 | 'T' << 16 | '1' << 24
 #define GCT_MSG_UNINSTALL (WM_APP + 1)
 #define GCT_MSG_QUERY     (WM_APP + 2)
@@ -84,112 +86,139 @@ static HWND FindClockWindow()
     return FindWindowExW(shell, NULL, L"TrayClockWClass", NULL);
 }
 
-static COLORREF SampleBackground(HWND hwnd)
-{
-    RECT windowRect;
-    GetWindowRect(hwnd, &windowRect);
+static LOGFONTW g_logFont;
+static bool g_hasLogFont = false;
+static COLORREF g_textColor = RGB(255, 255, 255);
+static COLORREF g_bgColor = RGB(32, 32, 32);
+static LONG_PTR g_originalExStyle = 0;
 
-    HDC screen = GetDC(NULL);
-    if (screen == NULL)
-    {
-        return RGB(32, 32, 32);
-    }
-
-    int x = windowRect.left - 4;
-    if (x < 2)
-    {
-        x = windowRect.right + 4;
-    }
-
-    int y1 = windowRect.top + 4;
-    int y2 = windowRect.bottom - 4;
-    COLORREF first = GetPixel(screen, x, y1);
-    COLORREF second = GetPixel(screen, x, y2);
-    ReleaseDC(NULL, screen);
-
-    if (first == CLR_INVALID && second == CLR_INVALID)
-    {
-        return RGB(32, 32, 32);
-    }
-    if (first == CLR_INVALID)
-    {
-        return second;
-    }
-    if (second == CLR_INVALID)
-    {
-        return first;
-    }
-
-    int r = (GetRValue(first) + GetRValue(second)) / 2;
-    int g = (GetGValue(first) + GetGValue(second)) / 2;
-    int b = (GetBValue(first) + GetBValue(second)) / 2;
-    return RGB(r, g, b);
-}
-
-static int Luminance(COLORREF color)
+static int ColorLuma(COLORREF color)
 {
     return (GetRValue(color) * 299 + GetGValue(color) * 587 + GetBValue(color) * 114) / 1000;
 }
 
-static COLORREF EnsureContrast(COLORREF background, COLORREF foreground)
+static void CaptureNativeTheme(HWND clock)
 {
-    int gap = Luminance(background) - Luminance(foreground);
-    if (gap < 0)
+    RECT rect;
+    GetWindowRect(clock, &rect);
+
+    HFONT font = (HFONT)SendMessageW(clock, WM_GETFONT, 0, 0);
+    if (font != NULL && GetObjectW(font, sizeof(g_logFont), &g_logFont) == sizeof(g_logFont))
     {
-        gap = -gap;
+        g_hasLogFont = true;
     }
-    if (gap >= 60)
+    if (!g_hasLogFont)
     {
-        return foreground;
+        NONCLIENTMETRICSW metrics;
+        ZeroMemory(&metrics, sizeof(metrics));
+        metrics.cbSize = sizeof(metrics);
+        if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0))
+        {
+            g_logFont = metrics.lfMessageFont;
+        }
+        else
+        {
+            ZeroMemory(&g_logFont, sizeof(g_logFont));
+            g_logFont.lfHeight = -12;
+            g_logFont.lfWeight = FW_NORMAL;
+            CopyString(g_logFont.lfFaceName, LF_FACESIZE, L"Segoe UI");
+        }
+        g_hasLogFont = true;
     }
-    return Luminance(background) < 128 ? RGB(255, 255, 255) : RGB(0, 0, 0);
+
+    DWORD lightTheme = 0;
+    DWORD lightThemeSize = sizeof(lightTheme);
+    if (RegGetValueW(HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        L"SystemUsesLightTheme", RRF_RT_REG_DWORD, NULL,
+        &lightTheme, &lightThemeSize) != ERROR_SUCCESS)
+    {
+        lightTheme = 0;
+    }
+    g_textColor = lightTheme != 0 ? RGB(0, 0, 0) : RGB(255, 255, 255);
+    g_bgColor = lightTheme != 0 ? RGB(243, 243, 243) : RGB(32, 32, 32);
+
 }
 
-static int FitFontHeight(HDC hdc, const RECT& rc, const GCTCONFIG& config)
+static HFONT BuildClockFont(HDC hdc, const RECT& rc, const GCTCONFIG& config, int* characterExtra, int* usedHeight)
 {
-    int availableWidth = (rc.right - rc.left) - 4;
+    int availableWidth = (rc.right - rc.left) - 2;
     int availableHeight = (rc.bottom - rc.top) / 2;
-    int height = config.fontHeight > 0 ? (int)config.fontHeight : 12;
+    int height = g_hasLogFont ? abs(g_logFont.lfHeight) : 12;
     if (height > availableHeight)
     {
         height = availableHeight;
     }
-    if (height < 6)
+    if (height < 8)
     {
-        height = 6;
+        height = 8;
     }
 
-    for (; height > 6; height--)
+    LOGFONTW baseFont;
+    if (g_hasLogFont)
     {
-        HFONT font = CreateFontW(-height, 0, 0, 0,
-            (config.flags & 1) != 0 ? FW_BOLD : FW_NORMAL,
-            (config.flags & 2) != 0 ? TRUE : FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE, config.fontFace);
+        baseFont = g_logFont;
+    }
+    else
+    {
+        ZeroMemory(&baseFont, sizeof(baseFont));
+        baseFont.lfWeight = FW_NORMAL;
+        CopyString(baseFont.lfFaceName, LF_FACESIZE, L"Segoe UI");
+    }
+
+    size_t length1 = wcslen(config.line1);
+    size_t length2 = wcslen(config.line2);
+    int characters = (int)(length1 > length2 ? length1 : length2);
+    if (characters < 1)
+    {
+        characters = 1;
+    }
+
+    for (;;)
+    {
+        LOGFONTW fontInfo = baseFont;
+        fontInfo.lfHeight = -height;
+        fontInfo.lfQuality = ANTIALIASED_QUALITY;
+        HFONT font = CreateFontIndirectW(&fontInfo);
         HGDIOBJ oldFont = SelectObject(hdc, font);
 
         SIZE first = { 0, 0 };
         SIZE second = { 0, 0 };
         if (config.line1[0] != L'\0')
         {
-            GetTextExtentPoint32W(hdc, config.line1, (int)wcslen(config.line1), &first);
+            GetTextExtentPoint32W(hdc, config.line1, (int)length1, &first);
         }
         if (config.line2[0] != L'\0')
         {
-            GetTextExtentPoint32W(hdc, config.line2, (int)wcslen(config.line2), &second);
+            GetTextExtentPoint32W(hdc, config.line2, (int)length2, &second);
+        }
+        SelectObject(hdc, oldFont);
+
+        int widest = first.cx > second.cx ? first.cx : second.cx;
+        int extra = 0;
+        if (widest > availableWidth)
+        {
+            extra = (availableWidth - widest) / characters;
+            if (extra < -3)
+            {
+                extra = -3;
+            }
         }
 
-        SelectObject(hdc, oldFont);
-        DeleteObject(font);
-
-        int width = first.cx > second.cx ? first.cx : second.cx;
-        if (width <= availableWidth)
+        if (widest + extra * characters <= availableWidth || height <= 8)
         {
-            return height;
+            *characterExtra = extra;
+            *usedHeight = height;
+            return font;
+        }
+
+        DeleteObject(font);
+        height--;
+        if (height < 8)
+        {
+            height = 8;
         }
     }
-
-    return 6;
 }
 
 static void PaintClock(HWND hwnd, HDC hdc)
@@ -211,21 +240,17 @@ static void PaintClock(HWND hwnd, HDC hdc)
         return;
     }
 
-    COLORREF backgroundColor = SampleBackground(hwnd);
-    HBRUSH background = CreateSolidBrush(backgroundColor);
+    HBRUSH background = CreateSolidBrush(g_bgColor);
     FillRect(hdc, &rc, background);
     DeleteObject(background);
 
-    int fontHeight = FitFontHeight(hdc, rc, config);
-    int textHeight = fontHeight > 0 ? -fontHeight : -12;
-    BYTE weight = (config.flags & 1) != 0 ? FW_BOLD : FW_NORMAL;
-    BYTE italic = (config.flags & 2) != 0 ? TRUE : FALSE;
-    HFONT font = CreateFontW(textHeight, 0, 0, 0, weight, italic, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE, config.fontFace);
+    int characterExtra = 0;
+    int usedHeight = 0;
+    HFONT font = BuildClockFont(hdc, rc, config, &characterExtra, &usedHeight);
     HGDIOBJ oldFont = SelectObject(hdc, font);
     int oldMode = SetBkMode(hdc, TRANSPARENT);
-    COLORREF oldColor = SetTextColor(hdc, EnsureContrast(backgroundColor, (COLORREF)config.color));
+    COLORREF oldColor = SetTextColor(hdc, g_textColor);
+    int oldExtra = SetTextCharacterExtra(hdc, characterExtra);
 
     int middle = (rc.top + rc.bottom) / 2;
     RECT upper = rc;
@@ -238,12 +263,12 @@ static void PaintClock(HWND hwnd, HDC hdc)
     DrawTextW(hdc, config.line2, -1, &lower,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
+    SetTextCharacterExtra(hdc, oldExtra);
     SetTextColor(hdc, oldColor);
     SetBkMode(hdc, oldMode);
     SelectObject(hdc, oldFont);
     DeleteObject(font);
 }
-
 static void RestoreClock()
 {
     HWND clock = g_clock;
@@ -259,6 +284,7 @@ static void RestoreClock()
     }
 
     KillTimer(clock, GCT_TIMER_ID);
+
 
     if (g_installed && g_originalWidth > 0)
     {
@@ -413,6 +439,7 @@ static bool InstallOnClock(HWND clock)
 
     GetWindowRect(clock, &g_originalRect);
     g_originalWidth = g_originalRect.right - g_originalRect.left;
+    CaptureNativeTheme(clock);
 
     SetLastError(0);
     WNDPROC previous = (WNDPROC)SetWindowLongPtrW(clock, GWLP_WNDPROC, (LONG_PTR)ClockProc);

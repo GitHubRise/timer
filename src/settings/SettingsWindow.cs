@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -45,11 +45,6 @@ namespace GameClock
         private readonly CheckBox _hideFullscreenCheck;
         private readonly CheckBox _desktopOverlayCheck;
         private readonly CheckBox _taskbarClockCheck;
-        private readonly ComboBox _taskbarFontCombo;
-        private readonly Slider _taskbarSizeSlider;
-        private readonly TextBlock _taskbarSizeValueText;
-        private readonly Border _taskbarColorSwatch;
-        private readonly TextBox _taskbarColorBox;
         private readonly TextBox _taskbarFormatBox;
         private readonly TextBlock _taskbarFormatStatus;
         private readonly ComboBox _taskbarFormatCombo;
@@ -246,37 +241,6 @@ namespace GameClock
                 false,
                 "TaskbarClockCheck",
                 "把时间显示在任务栏时钟位置，接管系统时钟的绘制；关闭后立即恢复系统样式。");
-
-            _taskbarFontCombo = new ComboBox();
-            UiTheme.ApplyComboBoxStyle(_taskbarFontCombo);
-            _taskbarFontCombo.ItemsSource = _fontChoices;
-            _taskbarFontCombo.ItemTemplate = CreateFontItemTemplate();
-            _taskbarFontCombo.MaxDropDownHeight = 320;
-            AutomationProperties.SetAutomationId(_taskbarFontCombo, "TaskbarFontCombo");
-            AutomationProperties.SetName(_taskbarFontCombo, "任务栏时钟字体");
-
-            _taskbarSizeSlider = CreateSlider(7, 40, 10, "TaskbarFontSizeSlider");
-            _taskbarSizeValueText = UiTheme.MakeText("10 px", 12.5, UiTheme.TextPrimary, FontWeights.SemiBold);
-            _taskbarSizeValueText.HorizontalAlignment = HorizontalAlignment.Right;
-
-            _taskbarColorSwatch = new Border();
-            _taskbarColorSwatch.Width = 26;
-            _taskbarColorSwatch.Height = 26;
-            _taskbarColorSwatch.CornerRadius = new CornerRadius(7);
-            _taskbarColorSwatch.BorderThickness = new Thickness(1);
-            _taskbarColorSwatch.BorderBrush = UiTheme.FieldBorder;
-            _taskbarColorSwatch.VerticalAlignment = VerticalAlignment.Center;
-
-            _taskbarColorBox = new TextBox();
-            UiTheme.ApplyTextBoxStyle(_taskbarColorBox);
-            _taskbarColorBox.Text = "#000000";
-            _taskbarColorBox.MaxLength = 9;
-            _taskbarColorBox.Width = 120;
-            _taskbarColorBox.Height = 32;
-            _taskbarColorBox.Margin = new Thickness(10, 0, 0, 0);
-            _taskbarColorBox.FontFamily = new FontFamily("Consolas");
-            AutomationProperties.SetAutomationId(_taskbarColorBox, "TaskbarColorBox");
-            AutomationProperties.SetName(_taskbarColorBox, "任务栏时钟颜色");
 
             _taskbarFormatBox = new TextBox();
             UiTheme.ApplyTextBoxStyle(_taskbarFormatBox);

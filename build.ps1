@@ -154,7 +154,7 @@ if ($vcvars) {
     Write-Host '正在编译 GameClockTray.dll（任务栏绘制组件）...'
     $nativeCommand = 'call "' + $vcvars + '" >nul && cl /nologo /LD /MT /O2 /DUNICODE /D_UNICODE /EHsc "' +
         $nativeSource + '" /Fo:"' + $objFile + '" /Fe:"' + $nativeDll +
-        '" /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib uxtheme.lib'
+        '" /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib uxtheme.lib advapi32.lib'
     & cmd.exe /c $nativeCommand
     if ($LASTEXITCODE -ne 0) {
         throw "原生任务栏组件编译失败，退出码：$LASTEXITCODE"
