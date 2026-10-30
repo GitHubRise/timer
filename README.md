@@ -46,13 +46,13 @@
 
 ### 任务栏时钟
 
-- 开关在本页顶部；开启后覆盖系统任务栏时间区域，关闭后立即恢复系统时钟。两个位置的开关互相独立，可以同时关闭。
+- 开关在本页顶部；开启后把系统任务栏时间区域改由本程序绘制，关闭后立即恢复系统时钟。两个位置的开关互相独立，可以同时关闭。
 - 任务栏时钟与桌面悬浮窗**各自保存字体、字号、颜色和显示格式**，互不影响。
-- 默认字体 `Microsoft YaHei UI`、字号 10 px、颜色 `#000000`；深色任务栏建议改为 `#FFFFFF`。
+- 默认字体 `Microsoft YaHei UI`、字号 10 px、颜色 `#000000`；深色任务栏会自动改用浅色文字，也可手动选择颜色。
 - 默认显示格式为两行：第一行 `yyyy-mm-dd HH:ff:ss`，第二行 `MD ddd rtm`（农历、星期与温度）。
 - 本页的“格式语言 / 常用格式 / 自定义格式”只作用于任务栏时钟；简洁变量与 .NET 两种格式分别保存。
 - 格式使用简洁变量，支持两行；任务栏空间不足时自动缩小字号。
-- 程序不会隐藏系统时钟，而是把它移出任务栏以保留布局占位，因此托盘图标不会移动；退出程序或取消勾选后系统时钟自动回到原位。
+- 实现方式：`GameClockTray.dll` 由程序加载进 `explorer.exe`，接管系统时钟窗口的绘制；不隐藏、不移动系统时钟，托盘布局保持不变。程序退出或取消勾选时恢复原始绘制；若进程被强制结束，组件在 15 秒无配置后自动恢复。
 
 ### 全局时间格式
 
@@ -222,7 +222,8 @@ GameClock = "完整路径\GameClock.exe"
 - 使用置顶窗口和 Win32 鼠标穿透，不注入游戏、不读取游戏内存，避免影响反作弊。
 - 若游戏以管理员身份运行，而本程序没有，某些系统级输入/置顶行为可能受 UIPI 限制；可让两者以相同权限运行。
 - 托盘图标是穿透后的恢复入口，请不要隐藏系统托盘。
-- 任务栏时钟依赖系统任务栏窗口结构（`Shell_TrayWnd` / `TrayClockWClass`）。系统更新或任务栏重建后程序会自动重新定位；若任务栏异常，取消勾选或退出程序即可恢复系统时钟。
+- 任务栏时钟依赖系统任务栏窗口结构（`Shell_TrayWnd` / `TrayClockWClass`），通过原生组件接管绘制。系统更新或任务栏重建后程序会自动重新注入；若任务栏异常，取消勾选或退出程序即可恢复系统时钟。
+- 原生组件会加载进 `explorer.exe`，部分安全软件可能提示或拦截；如不希望使用，请不要勾选「显示任务栏时钟」。
 - 设置、位置和提醒的“今日已触发”状态都会保存；程序退出后不会继续提醒。
 
 ## SHA-256 校验
@@ -231,6 +232,7 @@ GameClock = "完整路径\GameClock.exe"
 
 - `GameClock.exe`
 - `GameClock.exe.config`
+- `GameClockTray.dll`
 - `README.md`
 - `GameClock-v0.0.1.zip`
 
@@ -251,7 +253,7 @@ certutil -hashfile GameClock.exe SHA256
 
 ## 构建
 
-环境：Windows + .NET Framework 4.8（系统自带 `csc.exe`），无需 Visual Studio、NuGet 或网络。
+环境：Windows + .NET Framework 4.8（系统自带 `csc.exe`）；任务栏绘制组件需要 Visual Studio 2022 的 C++ 生成工具（`cl.exe`），缺失时会跳过该组件，其余功能仍可构建。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build.ps1
@@ -262,6 +264,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```text
 dist\GameClock.exe
 dist\GameClock.exe.config
+dist\GameClockTray.dll
 dist\GameClock-v0.0.1.zip
 dist\SHA256SUMS.txt
 ```
@@ -271,6 +274,8 @@ dist\SHA256SUMS.txt
 ```text
 C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 ```
+
+任务栏组件用 `cl.exe /LD /MT` 编译，源码在 `native\taskbar\GameClockTray.cpp`；脚本通过 `vswhere` 定位 `vcvars64.bat`。
 
 图标由 `tools\make-icon.ps1` 生成（蓝色科技表盘），每次构建会重新生成校验文件。
 
@@ -284,7 +289,7 @@ src/
     OverlayMenu.cs         托盘与时钟共用的右键菜单
   clock/        悬浮窗、任务栏时钟与分层文字
     ClockWindow.cs         置顶透明时钟窗口、拖动、天气行、提醒展示
-    TaskbarClockWindow.cs  覆盖任务栏时间区域的时钟窗、移出/恢复系统时钟
+    TaskbarClockWindow.cs  任务栏时钟控制器：注入原生组件并每秒推送文本与样式
     LayeredText.cs         阴影/3D 分层文字
   format/       时间格式与时区
     TimeFormatter.cs       时间格式、ISO 周数、内置格式
@@ -293,6 +298,7 @@ src/
     TimeZoneCatalog.cs     时区目录与选择
   platform/     系统集成
     NativeMethods.cs       Win32 置顶/穿透
+    TrayClockInjector.cs   任务栏组件注入、配置消息与卸载
     AutoStartManager.cs    开机自启注册表
   reminders/    提醒与日程
     Reminder.cs            提醒模型、工作/娱乐状态、内置提醒

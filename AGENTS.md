@@ -23,7 +23,7 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 | 路径 | 内容 | 不变量 |
 | --- | --- | --- |
 | `src/app/` | 进程入口、控制器、托盘与共用菜单 | 只做编排，不画窗口、不读写注册表 |
-| `src/clock/` | 悬浮窗、任务栏时钟、分层文字、提醒气泡 | 通过事件与控制器交互；任务栏窗只覆盖，不注入 explorer |
+| `src/clock/` | 悬浮窗、任务栏时钟控制器、分层文字、提醒气泡 | 通过事件与控制器交互；任务栏文本由注入的原生组件绘制，不隐藏/移动系统时钟 |
 | `src/format/` | 时间格式、简洁变量、时区 | 纯函数，非法输入返回空串 |
 | `src/platform/` | Win32 P/Invoke、开机自启 | 其他模块不得直接 `DllImport` |
 | `src/reminders/` | 提醒/日程模型与触发计算 | 不持有窗口引用 |
@@ -31,7 +31,8 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 | `src/theme/` | 暗色主题、滚动条、字体、SVG 图标 | 不引用 `AppSettings` |
 | `src/weather/` | Open-Meteo / ipify 取数 | 后台回调，失败回调 `null` |
 | `src/generated/` | 构建生成的 `BuildInfo.g.cs` | 不手写、不入库 |
-| `build/` | 清单、运行配置、编译号计数 | `build.number` 不入库 |
+| `build/` | 清单、运行配置、编译号计数、原生中间产物 | `build.number` 与 `build/obj/` 不入库 |
+| `native/` | 注入 explorer 的原生 C++ 组件 | 只放原生源码；产物进 `dist/`，不入库 |
 | `assets/` | 图标与 SVG | 被编译/代码路径引用，慎改名 |
 | `tools/` | 辅助脚本 | 不参与主构建 |
 | `docs/` | 编号文档与截图 | 规则见 `docs/Readme.md` |
@@ -39,14 +40,14 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 
 ## 4. 构建与运行
 
-前置：Windows 10/11 x64、.NET Framework 4.8、PowerShell 5.1+。
+前置：Windows 10/11 x64、.NET Framework 4.8、PowerShell 5.1+；任务栏绘制组件另需 Visual Studio 2022 的 C++ 生成工具（`cl.exe` + `vcvars64.bat`），缺失时脚本跳过该组件并给出警告。
 
 ```powershell
 # 在项目根执行
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-脚本行为：生成 `src/generated/BuildInfo.g.cs`（版本、`yyyyMMdd.N` 编译号、编译时间）→ 自增 `build/build.number` → 用 `csc.exe` 递归编译 `src/` 下全部 `.cs` → 输出 `dist/GameClock.exe`、复制 `GameClock.exe.config` 与 `README.md` → 打包 `dist/GameClock-v0.0.1.zip` 并写 `dist/SHA256SUMS.txt`。
+脚本行为：生成 `src/generated/BuildInfo.g.cs`（版本、`yyyyMMdd.N` 编译号、编译时间）→ 自增 `build/build.number` → 用 `csc.exe` 递归编译 `src/` 下全部 `.cs` → 输出 `dist/GameClock.exe`、复制 `GameClock.exe.config` 与 `README.md` → 用 `cl.exe /LD /MT` 编译 `native/taskbar/GameClockTray.cpp` 到 `dist/GameClockTray.dll` → 打包 `dist/GameClock-v0.0.1.zip`（含 DLL）并写 `dist/SHA256SUMS.txt`。
 
 - 编译器：`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`，对应 C# 5 语法上限：不可用字符串内插、`?.`、`nameof`、表达式体成员等新语法。
 - 项目没有 `.sln`/`.csproj`；在 IDE 中新增文件后，必须以 `build.ps1` 的实际编译结果为准。
@@ -64,7 +65,8 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 悬浮窗交互：拖动由 `_root.MouseLeftButtonDown → DragMove()` 负责（光标 `Cursors.SizeAll`）；滚轮只缩放字号（步长 4，Clamp 16–160），改 `FontSize` 后重绘并通过 `ScaleChanged` 通知控制器防抖保存，不得用滚轮改透明度或位置。
 - 全屏隐藏由 `SHQueryUserNotificationState` 返回的 `QUNS_RUNNING_D3D_FULL_SCREEN`(3) / `QUNS_PRESENTATION_MODE`(4) 驱动，1 秒轮询；只 `Hide()`/`Show()` 窗口，不停止时钟、提醒与日程计时器；关闭设置后必须立即恢复显示。
 - 时区同步统一走 `TimeZoneCatalog.GetSystemId()`（内部读 `TimeZoneInfo.Local`），设置窗口不得直接读 `TimeZoneInfo.Local`；「同步系统时区」只改编辑副本，点「应用」后落盘。
-- 任务栏覆盖窗**不得隐藏** `TrayClockWClass`（会触发任务栏重排、托盘图标移位）；应把系统时钟移出任务栏保留占位，退出时再移回。`TrayClockWClass` 是任务栏子窗口，`SetWindowPos` 坐标相对父窗口，恢复位置前需用父窗口矩形换算。
+- 任务栏绘制由 `native/taskbar/GameClockTray.cpp` 实现：`TrayClockInjector` 把 DLL 注入同一用户的 `explorer.exe`，DLL 子类化 `TrayClockWClass` 并自绘两行；**不得隐藏或移动系统时钟**（会触发任务栏重排、托盘图标移位）。配置通过 `WM_COPYDATA`（`dwData = 'GCT1'`）传递，布局固定 656 字节（magic/flags/color/fontHeight + 64/128/128 个 UTF-16 字符）；组件 15 秒无配置自动恢复原生绘制，`explorer` 重启后由 C# 端按新进程重新注入。
+- 原生 DLL 必须 x64、静态链接 CRT（`/MT`），不导出函数（加载即安装）；修改配置结构时同步改 `TrayClockInjector` 的 `BuildConfig` 与 C++ 端 `GCTCONFIG`，并在真机验证绘制与恢复。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
 
 ## 6. 已知缺口
