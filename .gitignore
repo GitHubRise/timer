@@ -1,0 +1,14 @@
+# 构建输出与生成代码
+dist/
+BuildInfo.g.cs
+bin/
+obj/
+
+# Visual Studio / Rider 本机状态
+.vs/
+*.user
+*.suo
+
+# 运行时日志与临时文件
+error.log
+temp/
