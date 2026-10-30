@@ -4,7 +4,7 @@
 
 ## 放什么
 
-- `NativeMethods.cs`：窗口样式、置顶、鼠标穿透、分层窗口等 Win32 声明与包装。
+- `NativeMethods.cs`：窗口样式、置顶、鼠标穿透、分层窗口、任务栏窗口查找与几何定位、系统时钟隐藏/恢复等 Win32 声明与包装。
 - `AutoStartManager.cs`：开机自启注册表项（`HKCU` Run）的写入、删除与查询。
 
 ## 不放什么

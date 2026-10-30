@@ -4,7 +4,7 @@
 
 ## 1. 项目定位
 
-Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统托盘，显示时间、天气、定时提醒与日程，支持鼠标穿透与开机自启。单进程 WPF 应用（托盘用 WinForms），无服务端、无数据库，设置以 JSON 存于 `%APPDATA%\GameClock\settings.json`。
+Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统托盘，显示时间、天气、定时提醒与日程，支持鼠标穿透与开机自启。显示位置有两种，可分别开关（至少保留一个）：桌面悬浮窗、任务栏时钟（覆盖系统任务栏时间区域）。单进程 WPF 应用（托盘用 WinForms），无服务端、无数据库，设置以 JSON 存于 `%APPDATA%\GameClock\settings.json`。
 
 ## 2. 采用的规范
 
@@ -23,7 +23,7 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 | 路径 | 内容 | 不变量 |
 | --- | --- | --- |
 | `src/app/` | 进程入口、控制器、托盘与共用菜单 | 只做编排，不画窗口、不读写注册表 |
-| `src/clock/` | 悬浮窗、分层文字、提醒气泡 | 通过事件与控制器交互 |
+| `src/clock/` | 悬浮窗、任务栏时钟、分层文字、提醒气泡 | 通过事件与控制器交互；任务栏窗只覆盖，不注入 explorer |
 | `src/format/` | 时间格式、简洁变量、时区 | 纯函数，非法输入返回空串 |
 | `src/platform/` | Win32 P/Invoke、开机自启 | 其他模块不得直接 `DllImport` |
 | `src/reminders/` | 提醒/日程模型与触发计算 | 不持有窗口引用 |
@@ -57,6 +57,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 全部类型保持 `namespace GameClock`；新增文件放进对应内容域目录，不新建 `utils/`、`common/` 兜底目录。
 - `SettingsWindow` 按页签拆为多个 `partial` 文件：主文件只放字段、构造与公共骨架，新增页签成员进对应分部文件。
 - 新增设置项需同时修改 `AppSettings` 字段、`Normalize`/`Clone`、对应页签与持久化兼容路径；旧配置缺字段时按默认值处理。
+- 显示位置由 `ShowDesktopOverlay` / `ShowTaskbarClock` 控制，`Normalize` 保证至少一个为真；窗口的创建、销毁与天气同步统一走 `AppController.ApplyDisplaySurfaces`，不要在设置窗口里直接开关窗口。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
 
 ## 6. 已知缺口

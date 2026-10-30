@@ -21,5 +21,6 @@
 ## 边界
 
 - 设置窗口编辑 `AppSettings` 的克隆副本，用户提交后通过 `ApplyRequested` 事件交给 `../app/AppController.cs` 应用并保存。
+- 「外观 → 显示位置」的「桌面悬浮窗」「任务栏时钟」只写 `ShowDesktopOverlay`/`ShowTaskbarClock`；至少保留一个由设置窗口与 `Normalize` 双重保证，窗口开关由控制器执行。
 - `SettingsWindow` 以 `partial` 按页签拆分，新增成员放进对应分部文件；主文件只保留字段、构造与公共骨架。
 - 分区文件必须复用主文件的 using 集，避免同类型在不同文件里解析到不同别名。
