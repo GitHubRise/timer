@@ -236,7 +236,11 @@ namespace GameClock
             UpdateText(false);
             // 任务栏会在面板展开、任务栏重绘时把自己提到最顶层窗口组前面，
             // 覆盖窗必须反复抬到最前，否则会露出系统的原生时钟。
-            NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
+            // 全屏隐藏期间不提升，避免把已隐藏的窗口重新显示出来。
+            if (IsVisible)
+            {
+                NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
+            }
         }
 
         private void OnSyncTick(object sender, EventArgs e)
@@ -988,9 +992,12 @@ namespace GameClock
         {
             if (visible)
             {
+                PositionWindow();
                 if (!IsVisible)
                 {
-                    PositionWindow();
+                    // 恢复时显式 Show()：只靠 MoveWindow 不会让隐藏窗口重新出现。
+                    Show();
+                    NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
                 }
                 return;
             }

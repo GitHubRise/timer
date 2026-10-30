@@ -62,9 +62,9 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 任务栏时钟外观**跟随系统任务栏**：字体取原生 `TrayClockWClass` 的 `WM_GETFONT`，文字颜色按采样背景亮度选择，背景从任务栏实际像素采样；字号 = 原生字号 × `TaskbarFontScale`/100（默认 100/标准，界面提供 100/112/124/136），`TaskbarBold` 控制加粗；宽度不够时用 Viewbox 横向收紧字距，不要按宽度一路缩小字号。`TaskbarFontFamilyName` / `TaskbarFontSize` / `TaskbarColorHex` 仅为旧配置兼容保留，最多作为字体读取失败时的兜底。格式仍用 `TaskbarFormatMode` / `TaskbarFormat` / `TaskbarDotNetFormat`，默认格式见 `FormatEngine.DefaultTaskbarTokenFormat`。
 - 格式语言与常用/自定义格式按显示位置各存一份：悬浮窗用 `FormatMode` / `TimeFormat` / `TokenTimeFormat`，任务栏用 `TaskbarFormatMode` / `TaskbarDotNetFormat` / `TaskbarFormat`；全局时间格式页只放时区与变量说明，不写格式。`TaskbarFormat` 始终存简洁变量，`TaskbarDotNetFormat` 始终存 .NET 格式。
 - 悬浮窗交互：拖动由 `_root.MouseLeftButtonDown → DragMove()` 负责（光标 `Cursors.SizeAll`）；滚轮只缩放字号（步长 4，Clamp 16–160），改 `FontSize` 后重绘并通过 `ScaleChanged` 通知控制器防抖保存，不得用滚轮改透明度或位置。
-- 全屏隐藏统一走 `NativeMethods.IsFullscreenForeground()`：先看 `SHQueryUserNotificationState` 的 `QUNS_RUNNING_D3D_FULL_SCREEN`(3) / `QUNS_PRESENTATION_MODE`(4)，再按前台窗口是否铺满整个显示器兜底（无边框全屏、浏览器 F11、窗口化全屏游戏）；忽略本进程与桌面/任务栏窗口。1 秒轮询，只 `Hide()`/`Show()` 窗口，不停止时钟、提醒与日程计时器；关闭设置后必须立即恢复显示。
+- 全屏隐藏统一走 `NativeMethods.IsFullscreenForeground()`：先看 `SHQueryUserNotificationState` 的 `QUNS_RUNNING_D3D_FULL_SCREEN`(3) / `QUNS_PRESENTATION_MODE`(4)，再按前台窗口是否铺满整个显示器兜底（无边框全屏、浏览器 F11、窗口化全屏游戏）；忽略本进程与桌面/任务栏窗口。1 秒轮询，只 `Hide()`/`Show()` 窗口，不停止时钟、提醒与日程计时器；关闭设置后必须立即恢复显示。判定变化时向 `%APPDATA%\GameClock\fullscreen.log` 追加一行（前台类名/标题/边框/显示器矩形与命中原因），排查“某个应用全屏没隐藏”先看该日志。
 - 时区同步统一走 `TimeZoneCatalog.GetSystemId()`（内部读 `TimeZoneInfo.Local`），设置窗口不得直接读 `TimeZoneInfo.Local`；「同步系统时区」只改编辑副本，点「应用」后落盘。
-- 任务栏覆盖窗**不得移动、不得隐藏** `TrayClockWClass`：只按它的矩形绘制不透明覆盖窗，进程退出或异常崩溃后系统时钟自然恢复。覆盖窗用 `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`、不透明背景；任务栏会在面板展开/重绘时把自己提到 TOPMOST 组前面，需每 250 ms `RaiseTopmost`，否则会露出原生时钟。
+- 任务栏覆盖窗**不得移动、不得隐藏** `TrayClockWClass`：只按它的矩形绘制不透明覆盖窗，进程退出或异常崩溃后系统时钟自然恢复。覆盖窗用 `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`、不透明背景；任务栏会在面板展开/重绘时把自己提到 TOPMOST 组前面，需每 250 ms `RaiseTopmost`，否则会露出原生时钟。`RaiseTopmost` 只在窗口 `IsVisible` 时调用，且**不得带 `SWP_SHOWWINDOW`**：带它会把刚 `Hide()` 的覆盖窗重新显示，导致全屏隐藏失效（250 ms 置顶与 1 秒全屏隐藏打架）。全屏恢复在 `SetVisible(true)` 里显式 `Show()`，不能只靠 `MoveWindow`。
 - 任务栏交互：悬停约 0.4 秒或左键单击展开 `TaskbarPanelWindow`，右键弹共用菜单；面板不抢焦点，单击后固定、点击面板外收起；面板数据只读 `AppSettings` 的副本，不直接改设置。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
 

@@ -333,12 +333,13 @@ namespace GameClock
 
         /// <summary>
         /// 把窗口提到最顶层窗口组的最前面。任务栏也是 TOPMOST 窗口，
-        /// 普通 SetWindowPos(HWND_TOPMOST) 在已经置顶时不一定重新排序，
-        /// 这里带 SWP_SHOWWINDOW 再提升一次，用于覆盖任务栏的时钟窗。
+        /// 普通 SetWindowPos(HWND_TOPMOST) 在已经置顶时不一定重新排序，这里再提升一次。
+        /// 注意不能带 SWP_SHOWWINDOW：任务栏时钟每 250 ms 调一次，
+        /// 带上它会把已 Hide() 的窗口重新显示出来，导致全屏隐藏失效。
         /// </summary>
         public static void RaiseTopmost(IntPtr hWnd)
         {
-            if (hWnd == IntPtr.Zero)
+            if (hWnd == IntPtr.Zero || !IsWindowVisible(hWnd))
             {
                 return;
             }
@@ -350,7 +351,7 @@ namespace GameClock
                 0,
                 0,
                 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
         }
 
         public const int QUNS_RUNNING_D3D_FULL_SCREEN = 3;
@@ -359,75 +360,146 @@ namespace GameClock
         [DllImport("shell32.dll")]
         public static extern int SHQueryUserNotificationState(out int state);
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int maxCount);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsZoomed(IntPtr hWnd);
+
         /// <summary>
         /// 判断当前前台是否处于全屏（独占全屏或铺满整个显示器的无边框全屏）。
         /// SHQueryUserNotificationState 对无边框全屏/浏览器 F11 不可靠，再按窗口矩形兜底。
+        /// 判定依据会写入 fullscreen.log，便于排查“某个应用全屏时没隐藏”。
         /// </summary>
         public static bool IsFullscreenForeground()
         {
-            int state;
-            if (SHQueryUserNotificationState(out state) == 0
-                && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE))
-            {
-                return true;
-            }
+            int state = -1;
+            bool queried = SHQueryUserNotificationState(out state) == 0;
+            bool exclusive = queried
+                && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 
             IntPtr foreground = GetForegroundWindow();
-            if (foreground == IntPtr.Zero || !IsWindowVisible(foreground))
+
+            string className = string.Empty;
+            string title = string.Empty;
+            uint processId = 0;
+            if (foreground != IntPtr.Zero)
             {
-                return false;
+                StringBuilder buffer = new StringBuilder(256);
+                if (GetClassName(foreground, buffer, buffer.Capacity) > 0)
+                {
+                    className = buffer.ToString();
+                }
+
+                buffer = new StringBuilder(200);
+                if (GetWindowTextW(foreground, buffer, buffer.Capacity) > 0)
+                {
+                    title = buffer.ToString();
+                }
+
+                GetWindowThreadProcessId(foreground, out processId);
             }
 
-            uint processId;
-            GetWindowThreadProcessId(foreground, out processId);
-            if (processId == GetCurrentProcessId())
+            bool result = false;
+            string reason = "none";
+            RECT frame = new RECT();
+            RECT monitorRect = new RECT();
+            bool hasFrame = false;
+            bool hasMonitor = false;
+
+            if (exclusive)
+            {
+                result = true;
+                reason = "quns";
+            }
+            else if (foreground == IntPtr.Zero || !IsWindowVisible(foreground))
+            {
+                reason = "no-foreground";
+            }
+            else if (processId == GetCurrentProcessId())
             {
                 // 自己的设置/面板/时钟窗口不算全屏应用。
-                return false;
+                reason = "self";
             }
-
-            StringBuilder className = new StringBuilder(256);
-            if (GetClassName(foreground, className, className.Capacity) > 0)
+            else if (string.Equals(className, "Progman", StringComparison.Ordinal)
+                || string.Equals(className, "WorkerW", StringComparison.Ordinal)
+                || string.Equals(className, "Shell_TrayWnd", StringComparison.Ordinal)
+                || string.Equals(className, "Shell_SecondaryTrayWnd", StringComparison.Ordinal))
             {
-                string name = className.ToString();
-                if (string.Equals(name, "Progman", StringComparison.Ordinal)
-                    || string.Equals(name, "WorkerW", StringComparison.Ordinal)
-                    || string.Equals(name, "Shell_TrayWnd", StringComparison.Ordinal)
-                    || string.Equals(name, "Shell_SecondaryTrayWnd", StringComparison.Ordinal))
+                reason = "shell";
+            }
+            else
+            {
+                IntPtr monitor = MonitorFromWindow(foreground, 2);
+                MONITORINFO info = new MONITORINFO();
+                info.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
+
+                if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info))
                 {
-                    return false;
+                    reason = "no-monitor";
+                }
+                else
+                {
+                    monitorRect = info.rcMonitor;
+                    hasMonitor = true;
+
+                    // 优先用 DWM 扩展边框：最大化窗口的真实客户区是工作区（不含任务栏），
+                    // 不会因为不可见边框被误判为全屏。
+                    if (DwmGetWindowAttribute(foreground, 9, out frame, Marshal.SizeOf(typeof(RECT))) != 0)
+                    {
+                        hasFrame = GetWindowRect(foreground, out frame);
+                    }
+                    else
+                    {
+                        hasFrame = true;
+                    }
+
+                    if (!hasFrame)
+                    {
+                        reason = "no-rect";
+                    }
+                    else
+                    {
+                        // 容忍 2px：个别全屏窗口的边框会略微超出显示器。
+                        result = frame.Left <= monitorRect.Left + 2
+                            && frame.Top <= monitorRect.Top + 2
+                            && frame.Right >= monitorRect.Right - 2
+                            && frame.Bottom >= monitorRect.Bottom - 2;
+                        reason = result ? "frame" : "smaller";
+                    }
                 }
             }
 
-            IntPtr monitor = MonitorFromWindow(foreground, 2);
-            if (monitor == IntPtr.Zero)
-            {
-                return false;
-            }
+            string signature = (result ? "1" : "0")
+                + "|" + reason
+                + "|" + processId
+                + "|" + className
+                + "|" + RectText(monitorRect);
 
-            MONITORINFO info = new MONITORINFO();
-            info.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
-            if (!GetMonitorInfo(monitor, ref info))
+            StringBuilder detail = new StringBuilder();
+            detail.Append(result ? "[FULLSCREEN]" : "[window]");
+            detail.Append(" reason=").Append(reason);
+            detail.Append(" quns=").Append(queried ? state.ToString() : "err");
+            detail.Append(" pid=").Append(processId);
+            detail.Append(" cls=").Append(className.Length == 0 ? "?" : className);
+            if (hasFrame)
             {
-                return false;
+                detail.Append(" frame=").Append(RectText(frame));
             }
-
-            // 优先用 DWM 扩展边框：最大化窗口的真实客户区是工作区（不含任务栏），
-            // 不会因为不可见边框被误判为全屏。
-            RECT rect;
-            if (DwmGetWindowAttribute(foreground, 9, out rect, Marshal.SizeOf(typeof(RECT))) != 0)
+            if (hasMonitor)
             {
-                if (!GetWindowRect(foreground, out rect))
-                {
-                    return false;
-                }
+                detail.Append(" monitor=").Append(RectText(monitorRect));
             }
+            detail.Append(" zoomed=").Append(IsZoomed(foreground) ? "1" : "0");
+            detail.Append(" title=").Append(title);
 
-            // 容忍 2px：个别全屏窗口的边框会略微超出显示器。
-            return rect.Left <= info.rcMonitor.Left + 2
-                && rect.Top <= info.rcMonitor.Top + 2
-                && rect.Right >= info.rcMonitor.Right - 2
-                && rect.Bottom >= info.rcMonitor.Bottom - 2;
+            FullscreenProbe.Report(signature, detail.ToString());
+            return result;
+        }
+
+        private static string RectText(RECT rect)
+        {
+            return rect.Left + "," + rect.Top + "," + rect.Right + "," + rect.Bottom;
         }
 
         public const int WM_GETFONT = 0x0031;
