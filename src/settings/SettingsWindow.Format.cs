@@ -34,7 +34,27 @@ namespace GameClock
             timeZoneHint.Margin = new Thickness(0, 0, 0, 8);
             timeZoneHint.TextWrapping = TextWrapping.Wrap;
             timeZonePanel.Children.Add(timeZoneHint);
-            timeZonePanel.Children.Add(_timeZoneCombo);
+
+            Grid timeZoneRow = new Grid();
+            timeZoneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            timeZoneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            timeZoneRow.Children.Add(_timeZoneCombo);
+            Grid.SetColumn(_timeZoneCombo, 0);
+
+            Button syncButton = new Button();
+            syncButton.Content = "同步系统时区";
+            syncButton.Style = UiTheme.SecondaryButtonStyle;
+            syncButton.Padding = new Thickness(12, 5, 12, 5);
+            syncButton.Height = 32;
+            syncButton.Margin = new Thickness(8, 0, 0, 0);
+            syncButton.VerticalAlignment = VerticalAlignment.Center;
+            syncButton.ToolTip = "读取 Windows 当前时区并立即切换；点「应用」后保存。";
+            syncButton.Click += OnSyncSystemTimeZone;
+            AutomationProperties.SetAutomationId(syncButton, "SyncTimeZoneButton");
+            timeZoneRow.Children.Add(syncButton);
+            Grid.SetColumn(syncButton, 1);
+
+            timeZonePanel.Children.Add(timeZoneRow);
             timeZonePanel.Children.Add(_timeZoneStatus);
             timeZoneCard.Child = timeZonePanel;
             panel.Children.Add(timeZoneCard);
@@ -342,6 +362,22 @@ namespace GameClock
             MarkDirty();
         }
 
+        private void OnSyncSystemTimeZone(object sender, RoutedEventArgs e)
+        {
+            string systemId = TimeZoneCatalog.GetSystemId();
+            _working.TimeZoneId = systemId;
+            SelectTimeZoneChoice(systemId);
+            UpdateTimeZoneStatus();
+            UpdatePreview();
+            MarkDirty();
+
+            if (_footerStatus != null)
+            {
+                _footerStatus.Text = "已同步系统时区：" + TimeZoneCatalog.GetOffsetLabel(systemId)
+                    + " · " + systemId + "，点「应用」生效。";
+            }
+        }
+
         private void UpdateTimeZoneStatus()
         {
             TimeZoneChoice choice = _timeZoneCombo.SelectedItem as TimeZoneChoice;
@@ -349,8 +385,21 @@ namespace GameClock
             {
                 return;
             }
-            _timeZoneStatus.Text = "当前：" + TimeZoneCatalog.GetOffsetLabel(choice.Id) + " · " + choice.Id;
-            _timeZoneStatus.Foreground = UiTheme.TextMuted;
+
+            string systemId = TimeZoneCatalog.GetSystemId();
+            string current = TimeZoneCatalog.GetOffsetLabel(choice.Id) + " · " + choice.Id;
+            if (string.Equals(choice.Id, systemId, StringComparison.OrdinalIgnoreCase))
+            {
+                _timeZoneStatus.Text = "当前：" + current + "\n已与系统时区一致。";
+                _timeZoneStatus.Foreground = UiTheme.TextMuted;
+            }
+            else
+            {
+                _timeZoneStatus.Text = "当前：" + current
+                    + "\n系统时区：" + TimeZoneCatalog.GetOffsetLabel(systemId) + " · " + systemId
+                    + "，可点「同步系统时区」。";
+                _timeZoneStatus.Foreground = UiTheme.Accent;
+            }
         }
 
         private void SelectTimeZoneChoice(string id)

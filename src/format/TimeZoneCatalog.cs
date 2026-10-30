@@ -152,6 +152,18 @@ namespace GameClock
                 absolute.Minutes);
         }
 
+        public static string GetSystemId()
+        {
+            try
+            {
+                return Normalize(TimeZoneInfo.Local.Id);
+            }
+            catch (Exception)
+            {
+                return DefaultId;
+            }
+        }
+
         private static string FindDefaultId()
         {
             try
