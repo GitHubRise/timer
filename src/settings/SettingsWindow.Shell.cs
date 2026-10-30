@@ -46,6 +46,7 @@ namespace GameClock
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             header.Background = Brushes.Transparent;
+            header.Cursor = Cursors.SizeAll;
             header.MouseLeftButtonDown += OnHeaderMouseDown;
 
             StackPanel titleStack = new StackPanel();
@@ -73,6 +74,7 @@ namespace GameClock
             closeButton.HorizontalAlignment = HorizontalAlignment.Right;
             closeButton.VerticalAlignment = VerticalAlignment.Top;
             closeButton.ToolTip = "关闭（不应用尚未保存的修改）";
+            closeButton.Cursor = Cursors.Arrow;
             closeButton.Click += OnClose;
             AutomationProperties.SetAutomationId(closeButton, "CloseButton");
             header.Children.Add(closeButton);
