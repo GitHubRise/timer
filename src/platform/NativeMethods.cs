@@ -22,6 +22,10 @@ namespace GameClock
         public const int WM_MOUSEACTIVATE = 0x0021;
         public const int MA_NOACTIVATE = 3;
 
+        public const int SW_HIDE = 0;
+        public const int SW_SHOWNOACTIVATE = 4;
+        public const uint WM_SETTINGCHANGE = 0x001A;
+
         public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
 
@@ -32,8 +36,45 @@ namespace GameClock
             public int Y;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out POINT point);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "FindWindowW")]
+        public static extern IntPtr FindWindow(string className, string windowName);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "FindWindowExW")]
+        public static extern IntPtr FindWindowEx(IntPtr parent, IntPtr childAfter, string className, string windowName);
+
+        [DllImport("user32.dll")]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int command);
+
+        [DllImport("user32.dll")]
+        public static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SendMessageTimeout(
+            IntPtr hWnd,
+            uint msg,
+            IntPtr wParam,
+            IntPtr lParam,
+            uint flags,
+            uint timeout,
+            out IntPtr result);
 
         [DllImport("user32.dll")]
         public static extern bool SetWindowPos(
@@ -97,6 +138,35 @@ namespace GameClock
                 style &= ~WS_EX_TRANSPARENT;
             }
             SetWindowLongPtr(hWnd, GWL_EXSTYLE, new IntPtr(style));
+        }
+
+        public static void ApplyTaskbarStyles(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            long style = GetWindowLongPtr(hWnd, GWL_EXSTYLE).ToInt64();
+            style |= WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE;
+            SetWindowLongPtr(hWnd, GWL_EXSTYLE, new IntPtr(style));
+        }
+
+        public static void MoveWindowPhysical(IntPtr hWnd, int x, int y, int width, int height)
+        {
+            if (hWnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            SetWindowPos(
+                hWnd,
+                HWND_TOPMOST,
+                x,
+                y,
+                width,
+                height,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOOWNERZORDER);
         }
 
         public static void SetClickThrough(IntPtr hWnd, bool enabled)

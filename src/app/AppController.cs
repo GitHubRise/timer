@@ -11,6 +11,8 @@ namespace GameClock
         private readonly Application _app;
         private AppSettings _settings;
         private ClockWindow _clock;
+        private TaskbarClockWindow _taskbarClock;
+        private WeatherInfo _weatherInfo;
         private OverlayMenu _menu;
         private WinForms.NotifyIcon _tray;
         private System.Drawing.Icon _trayIcon;
@@ -64,6 +66,7 @@ namespace GameClock
             _clock.ReminderTriggered += OnClockReminderTriggered;
             _clock.ScheduleTriggered += OnClockScheduleTriggered;
             _clock.Show();
+            ApplyDisplaySurfaces();
 
             CreateTrayIcon();
             SyncMenu();
@@ -75,6 +78,45 @@ namespace GameClock
             _weatherTimer.Tick += OnWeatherTimerTick;
             ConfigureWeatherTimer();
             RefreshWeather();
+        }
+
+        private void ApplyDisplaySurfaces()
+        {
+            if (_settings == null || _exiting || _clock == null)
+            {
+                return;
+            }
+
+            if (_settings.ShowDesktopOverlay)
+            {
+                if (!_clock.IsVisible)
+                {
+                    _clock.Show();
+                }
+                _clock.ReassertTopmost();
+            }
+            else if (_clock.IsVisible)
+            {
+                _clock.Hide();
+            }
+
+            if (_settings.ShowTaskbarClock)
+            {
+                if (_taskbarClock == null)
+                {
+                    _taskbarClock = new TaskbarClockWindow(_settings);
+                }
+                else
+                {
+                    _taskbarClock.ApplySettings(_settings);
+                }
+                _taskbarClock.SetWeather(_settings.WeatherEnabled ? _weatherInfo : null);
+                _taskbarClock.Start();
+            }
+            else if (_taskbarClock != null)
+            {
+                _taskbarClock.Stop();
+            }
         }
 
         private void ConfigureWeatherTimer()
@@ -156,7 +198,12 @@ namespace GameClock
             if (_settings == null || !_settings.WeatherEnabled || _exiting)
             {
                 _weatherGeneration++;
+                _weatherInfo = null;
                 _clock.SetWeather(null);
+                if (_taskbarClock != null)
+                {
+                    _taskbarClock.SetWeather(null);
+                }
                 return;
             }
 
@@ -191,7 +238,12 @@ namespace GameClock
                             }
                             if (info != null)
                             {
+                                _weatherInfo = info;
                                 _clock.SetWeather(info);
+                                if (_taskbarClock != null)
+                                {
+                                    _taskbarClock.SetWeather(info);
+                                }
                             }
                         }),
                         DispatcherPriority.Background);
@@ -424,7 +476,20 @@ namespace GameClock
             {
                 return;
             }
-            _clock.ShowReminderPreview(e.Time, e.Message);
+
+            if (_settings != null && _settings.ShowDesktopOverlay)
+            {
+                _clock.ShowReminderPreview(e.Time, e.Message);
+                return;
+            }
+
+            if (_tray != null && _tray.Visible)
+            {
+                _tray.BalloonTipTitle = e.Time + " · 时间提醒";
+                _tray.BalloonTipText = e.Message;
+                _tray.BalloonTipIcon = WinForms.ToolTipIcon.Info;
+                _tray.ShowBalloonTip(4200);
+            }
         }
 
         private void CommitDialogSettings(AppSettings updated, bool reactivateDialog)
@@ -448,6 +513,7 @@ namespace GameClock
             _settings = next;
             bool autoStartApplied = AutoStartManager.SetEnabled(_settings.StartWithWindows);
             _clock.ApplySettings(_settings);
+            ApplyDisplaySurfaces();
             _clock.CheckRemindersNow();
             ConfigureWeatherTimer();
             SyncMenu();
@@ -462,11 +528,21 @@ namespace GameClock
             if (!_settings.WeatherEnabled)
             {
                 _weatherGeneration++;
+                _weatherInfo = null;
                 _clock.SetWeather(null);
+                if (_taskbarClock != null)
+                {
+                    _taskbarClock.SetWeather(null);
+                }
             }
             else if (weatherChanged)
             {
+                _weatherInfo = null;
                 _clock.SetWeather(null);
+                if (_taskbarClock != null)
+                {
+                    _taskbarClock.SetWeather(null);
+                }
                 RefreshWeather();
             }
             else if (formatChanged)
@@ -614,6 +690,12 @@ namespace GameClock
 
             if (_clock != null)
             {
+                if (_taskbarClock != null)
+                {
+                    _taskbarClock.Stop();
+                    _taskbarClock.Close();
+                    _taskbarClock = null;
+                }
                 _clock.Close();
                 _clock = null;
             }
@@ -680,6 +762,12 @@ namespace GameClock
 
             if (_clock != null)
             {
+                if (_taskbarClock != null)
+                {
+                    _taskbarClock.Stop();
+                    _taskbarClock.Close();
+                    _taskbarClock = null;
+                }
                 _clock.Close();
                 _clock = null;
             }
