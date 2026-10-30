@@ -469,7 +469,6 @@ static DWORD WINAPI InstallThread(LPVOID)
     }
     return 0;
 }
-
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID)
 {
     if (reason == DLL_PROCESS_ATTACH)

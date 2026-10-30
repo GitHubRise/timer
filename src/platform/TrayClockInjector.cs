@@ -43,11 +43,11 @@ namespace GameClock
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, ref CopyDataStruct lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SendMessageTimeout(IntPtr hwnd, int message, IntPtr wParam, ref CopyDataStruct lParam, uint flags, uint timeout, out IntPtr result);
 
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SendMessageTimeout(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr OpenProcess(uint access, bool inheritHandle, int processId);
@@ -75,6 +75,9 @@ namespace GameClock
 
         [DllImport("kernel32.dll")]
         private static extern bool CloseHandle(IntPtr handle);
+
+        private const uint SmtoAbortIfHung = 0x0002;
+        private const uint SendTimeoutMs = 250;
 
         private static readonly object Sync = new object();
         private static int _injectedProcessId;
@@ -107,7 +110,8 @@ namespace GameClock
             {
                 return false;
             }
-            return SendMessage(clock, QueryMessage, IntPtr.Zero, IntPtr.Zero) == new IntPtr(1);
+            IntPtr result;
+            return SendMessageTimeout(clock, QueryMessage, IntPtr.Zero, IntPtr.Zero, SmtoAbortIfHung, SendTimeoutMs, out result) != IntPtr.Zero && result == new IntPtr(1);
         }
 
         internal static bool EnsureInstalled(IntPtr clock, out string error)
@@ -146,7 +150,7 @@ namespace GameClock
                 return false;
             }
 
-            for (int i = 0; i < 60; i++)
+            for (int i = 0; i < 15; i++)
             {
                 if (IsInstalled(clock))
                 {
@@ -179,7 +183,8 @@ namespace GameClock
                 cds.dwData = new IntPtr(unchecked((int)ConfigMagic));
                 cds.cbData = data.Length;
                 cds.lpData = handle.AddrOfPinnedObject();
-                SendMessage(clock, WmCopyData, IntPtr.Zero, ref cds);
+                IntPtr result;
+                return SendMessageTimeout(clock, WmCopyData, IntPtr.Zero, ref cds, SmtoAbortIfHung, SendTimeoutMs, out result) != IntPtr.Zero;
                 return true;
             }
             finally
@@ -194,7 +199,8 @@ namespace GameClock
             {
                 return;
             }
-            SendMessage(clock, UninstallMessage, IntPtr.Zero, IntPtr.Zero);
+            IntPtr result;
+            SendMessageTimeout(clock, UninstallMessage, IntPtr.Zero, IntPtr.Zero, SmtoAbortIfHung, SendTimeoutMs, out result);
         }
 
         internal static void ResetProcessCache()

@@ -17,6 +17,7 @@ namespace GameClock
         private bool _started;
         private bool _disposed;
         private bool _failed;
+        private int _pushing;
         private DateTime _lastAttempt;
 
         public TaskbarClockWindow(AppSettings settings)
@@ -108,11 +109,35 @@ namespace GameClock
 
         private void Push()
         {
-            if (!_started)
+            if (!_started || System.Threading.Interlocked.CompareExchange(ref _pushing, 1, 0) != 0)
             {
                 return;
             }
 
+            string text = BuildText();
+            string first;
+            string second;
+            SplitLines(text, out first, out second);
+
+            string fontFace = _settings.TaskbarFontFamilyName;
+            int fontHeight = (int)Math.Round(_settings.TaskbarFontSize);
+            System.Windows.Media.Color color = _settings.TaskbarColor;
+
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    PushCore(fontFace, fontHeight, color, first, second);
+                }
+                finally
+                {
+                    System.Threading.Interlocked.Exchange(ref _pushing, 0);
+                }
+            });
+        }
+
+        private void PushCore(string fontFace, int fontHeight, System.Windows.Media.Color color, string first, string second)
+        {
             IntPtr clock = TrayClockInjector.FindClock();
             if (clock == IntPtr.Zero)
             {
@@ -147,22 +172,8 @@ namespace GameClock
                 TrayClockInjector.ResetProcessCache();
             }
 
-            string text = BuildText();
-            string first;
-            string second;
-            SplitLines(text, out first, out second);
-
-            TrayClockInjector.SendConfig(
-                clock,
-                _settings.TaskbarFontFamilyName,
-                (int)Math.Round(_settings.TaskbarFontSize),
-                false,
-                false,
-                _settings.TaskbarColor,
-                first,
-                second);
+            TrayClockInjector.SendConfig(clock, fontFace, fontHeight, false, false, color, first, second);
         }
-
         private string BuildText()
         {
             DateTime now = TimeZoneCatalog.GetNow(TimeZoneCatalog.GetZone(_settings.TimeZoneId));
