@@ -12,6 +12,21 @@ namespace GameClock
         {
             StackPanel panel = new StackPanel();
 
+            Border switchCard = UiTheme.MakeCard();
+            StackPanel switchPanel = new StackPanel();
+            switchPanel.Children.Add(UiTheme.MakeSectionTitle("任务栏时钟"));
+            switchPanel.Children.Add(_taskbarClockCheck);
+            TextBlock switchHint = UiTheme.MakeText(
+                "开启后覆盖系统任务栏的时间区域，并把系统时钟暂移出任务栏；关闭后立即恢复。下方的字体、颜色与格式只作用于任务栏时钟。",
+                11,
+                UiTheme.TextMuted,
+                FontWeights.Normal);
+            switchHint.TextWrapping = TextWrapping.Wrap;
+            switchHint.Margin = new Thickness(24, 3, 0, 0);
+            switchPanel.Children.Add(switchHint);
+            switchCard.Child = switchPanel;
+            panel.Children.Add(switchCard);
+
             Border fontCard = UiTheme.MakeCard();
             StackPanel fontPanel = new StackPanel();
             fontPanel.Children.Add(UiTheme.MakeSectionTitle("字体与颜色"));

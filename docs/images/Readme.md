@@ -5,7 +5,7 @@
 | 文件 | 内容 |
 | --- | --- |
 | `overlay.png` | 悬浮窗默认外观 |
-| `settings.png` | 设置窗口「外观」页签 |
+| `settings.png` | 设置窗口「桌面悬浮窗」页签 |
 | `timezone.png` | 时间格式页签中的时区选择 |
 | `reminders.png` | 设置窗口「定时提醒」页签 |
 | `default-reminders.png` | 内置提醒列表 |

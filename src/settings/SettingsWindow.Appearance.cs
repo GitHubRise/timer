@@ -23,21 +23,20 @@ namespace GameClock
         {
             StackPanel panel = new StackPanel();
 
-            Border displayCard = UiTheme.MakeCard();
-            StackPanel displayPanel = new StackPanel();
-            displayPanel.Children.Add(UiTheme.MakeSectionTitle("显示位置"));
-            displayPanel.Children.Add(_desktopOverlayCheck);
-            displayPanel.Children.Add(_taskbarClockCheck);
-            TextBlock displayHint = UiTheme.MakeText(
-                "桌面悬浮窗可拖动并支持右键菜单；任务栏时钟固定显示在任务栏时间区，开启时会暂时隐藏系统自带时间。两者至少保留一个。",
+            Border overlayCard = UiTheme.MakeCard();
+            StackPanel overlayPanel = new StackPanel();
+            overlayPanel.Children.Add(UiTheme.MakeSectionTitle("桌面悬浮窗"));
+            overlayPanel.Children.Add(_desktopOverlayCheck);
+            TextBlock overlayHint = UiTheme.MakeText(
+                "可拖动并支持右键菜单；关闭后桌面不再显示悬浮窗，任务栏时钟不受影响。",
                 11,
                 UiTheme.TextMuted,
                 FontWeights.Normal);
-            displayHint.TextWrapping = TextWrapping.Wrap;
-            displayHint.Margin = new Thickness(24, 3, 0, 0);
-            displayPanel.Children.Add(displayHint);
-            displayCard.Child = displayPanel;
-            panel.Children.Add(displayCard);
+            overlayHint.TextWrapping = TextWrapping.Wrap;
+            overlayHint.Margin = new Thickness(24, 3, 0, 0);
+            overlayPanel.Children.Add(overlayHint);
+            overlayCard.Child = overlayPanel;
+            panel.Children.Add(overlayCard);
 
             Border fontCard = UiTheme.MakeCard();
             StackPanel fontPanel = new StackPanel();
@@ -158,17 +157,8 @@ namespace GameClock
                 return;
             }
 
-            bool desktop = _desktopOverlayCheck.IsChecked == true;
-            bool taskbar = _taskbarClockCheck.IsChecked == true;
-            if (!desktop && !taskbar)
-            {
-                // Keep at least one surface visible; the second event writes the flags.
-                _desktopOverlayCheck.IsChecked = true;
-                return;
-            }
-
-            _working.ShowDesktopOverlay = desktop;
-            _working.ShowTaskbarClock = taskbar;
+            _working.ShowDesktopOverlay = _desktopOverlayCheck.IsChecked == true;
+            _working.ShowTaskbarClock = _taskbarClockCheck.IsChecked == true;
             MarkDirty();
         }
 

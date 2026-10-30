@@ -356,11 +356,6 @@ namespace GameClock
                 Left = null;
                 Top = null;
             }
-
-            if (!ShowDesktopOverlay && !ShowTaskbarClock)
-            {
-                ShowDesktopOverlay = true;
-            }
         }
 
         public static AppSettings CreateDefault()

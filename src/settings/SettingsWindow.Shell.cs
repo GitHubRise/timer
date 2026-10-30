@@ -84,8 +84,8 @@ namespace GameClock
             root.Children.Add(previewCard);
             Grid.SetRow(previewCard, 1);
 
-            _tabs.Items.Add(CreateTab("外观", BuildAppearanceTab()));
-            _tabs.Items.Add(CreateTab("任务栏", BuildTaskbarTab()));
+            _tabs.Items.Add(CreateTab("桌面悬浮窗", BuildAppearanceTab()));
+            _tabs.Items.Add(CreateTab("任务栏时钟", BuildTaskbarTab()));
             _tabs.Items.Add(CreateTab("时间格式", BuildFormatTab()));
             _tabs.Items.Add(CreateTab("定时提醒", BuildRemindersTab()));
             _tabs.Items.Add(CreateTab("日程", BuildScheduleTab()));
