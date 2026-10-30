@@ -56,6 +56,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 - 全部类型保持 `namespace GameClock`；新增文件放进对应内容域目录，不新建 `utils/`、`common/` 兜底目录。
 - `SettingsWindow` 按页签拆为多个 `partial` 文件：主文件只放字段、构造与公共骨架，新增页签成员进对应分部文件。
+- `SettingsWindow` 为无边框窗口，靠 `WindowChrome`（`ResizeBorderThickness=6`）提供四边缩放，`ResizeMode=CanResize`、最小 640×560；拖动由标题 `Grid` 的 `MouseLeftButtonDown → DragMove()` 实现，不要只在标题文字上挂拖动，也不要把 `ResizeMode` 改回 `NoResize`。
 - 新增设置项需同时修改 `AppSettings` 字段、`Normalize`/`Clone`、对应页签与持久化兼容路径；旧配置缺字段时按默认值处理。
 - 显示位置由 `ShowDesktopOverlay` / `ShowTaskbarClock` 控制，两个开关分属「桌面悬浮窗」「任务栏时钟」页签、互相独立，可同时关闭（关闭后该位置不显示）；窗口的创建、销毁与天气同步统一走 `AppController.ApplyDisplaySurfaces`，不要在设置窗口里直接开关窗口。
 - 任务栏显示使用独立设置 `TaskbarFontFamilyName` / `TaskbarFontSize` / `TaskbarColorHex` / `TaskbarFormatMode` / `TaskbarFormat` / `TaskbarDotNetFormat`，不要复用悬浮窗的字体与格式字段；默认格式见 `FormatEngine.DefaultTaskbarTokenFormat`。
