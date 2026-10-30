@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -40,6 +40,8 @@ namespace GameClock
         private readonly CheckBox _clickThroughCheck;
         private readonly CheckBox _topmostCheck;
         private readonly CheckBox _startWithWindowsCheck;
+        private readonly CheckBox _desktopOverlayCheck;
+        private readonly CheckBox _taskbarClockCheck;
         private readonly CheckBox _weatherEnabledCheck;
         private readonly TextBox _weatherCityBox;
         private readonly Button _weatherTestButton;
@@ -201,6 +203,16 @@ namespace GameClock
                 false,
                 "StartWithWindowsCheck",
                 "登录 Windows 后自动启动时间悬浮窗；不需要管理员权限。");
+            _desktopOverlayCheck = CreateCheckBox(
+                "桌面悬浮窗",
+                true,
+                "DesktopOverlayCheck",
+                "在桌面上显示可拖动的时间悬浮窗；关闭后只保留任务栏时钟。");
+            _taskbarClockCheck = CreateCheckBox(
+                "任务栏时钟",
+                false,
+                "TaskbarClockCheck",
+                "把时间显示在任务栏时钟位置；开启期间会暂时隐藏系统自带时间，两者至少保留一个。");
 
             _weatherEnabledCheck = CreateCheckBox(
                 "显示天气预报（默认开启）",

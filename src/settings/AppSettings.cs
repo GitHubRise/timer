@@ -62,6 +62,12 @@ namespace GameClock
         [DataMember(Name = "startWithWindows")]
         public bool StartWithWindows { get; set; }
 
+        [DataMember(Name = "showDesktopOverlay")]
+        public bool ShowDesktopOverlay { get; set; }
+
+        [DataMember(Name = "showTaskbarClock")]
+        public bool ShowTaskbarClock { get; set; }
+
         [DataMember(Name = "currentMode")]
         public string CurrentMode { get; set; }
 
@@ -143,6 +149,8 @@ namespace GameClock
             ClickThrough = false;
             Topmost = true;
             StartWithWindows = false;
+            ShowDesktopOverlay = true;
+            ShowTaskbarClock = false;
             CurrentMode = ReminderModes.Leisure;
             WeatherEnabled = true;
             WeatherCity = "北京";
@@ -307,6 +315,11 @@ namespace GameClock
             {
                 Left = null;
                 Top = null;
+            }
+
+            if (!ShowDesktopOverlay && !ShowTaskbarClock)
+            {
+                ShowDesktopOverlay = true;
             }
         }
 

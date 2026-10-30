@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -116,6 +116,10 @@ namespace GameClock
             _topmostCheck.Unchecked += OnBehaviorChanged;
             _startWithWindowsCheck.Checked += OnBehaviorChanged;
             _startWithWindowsCheck.Unchecked += OnBehaviorChanged;
+            _desktopOverlayCheck.Checked += OnDisplaySurfaceChanged;
+            _desktopOverlayCheck.Unchecked += OnDisplaySurfaceChanged;
+            _taskbarClockCheck.Checked += OnDisplaySurfaceChanged;
+            _taskbarClockCheck.Unchecked += OnDisplaySurfaceChanged;
             _formatCombo.SelectionChanged += OnFormatPresetChanged;
             _formatBox.TextChanged += OnFormatTextChanged;
             _formatBox.PreviewKeyDown += OnFormatKeyDown;
@@ -167,6 +171,8 @@ namespace GameClock
             _clickThroughCheck.IsChecked = _working.ClickThrough;
             _topmostCheck.IsChecked = _working.Topmost;
             _startWithWindowsCheck.IsChecked = _working.StartWithWindows;
+            _desktopOverlayCheck.IsChecked = _working.ShowDesktopOverlay;
+            _taskbarClockCheck.IsChecked = _working.ShowTaskbarClock;
 
             string mode = ReminderModes.Normalize(_working.CurrentMode);
             _workModeRadio.IsChecked = mode == ReminderModes.Work;
@@ -412,6 +418,8 @@ namespace GameClock
             _working.ClickThrough = _clickThroughCheck.IsChecked == true;
             _working.Topmost = _topmostCheck.IsChecked == true;
             _working.StartWithWindows = _startWithWindowsCheck.IsChecked == true;
+            _working.ShowDesktopOverlay = _desktopOverlayCheck.IsChecked == true;
+            _working.ShowTaskbarClock = _taskbarClockCheck.IsChecked == true;
             _working.CurrentMode = _workModeRadio.IsChecked == true
                 ? ReminderModes.Work
                 : ReminderModes.Leisure;

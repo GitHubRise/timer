@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -22,6 +22,22 @@ namespace GameClock
         private UIElement BuildAppearanceTab()
         {
             StackPanel panel = new StackPanel();
+
+            Border displayCard = UiTheme.MakeCard();
+            StackPanel displayPanel = new StackPanel();
+            displayPanel.Children.Add(UiTheme.MakeSectionTitle("显示位置"));
+            displayPanel.Children.Add(_desktopOverlayCheck);
+            displayPanel.Children.Add(_taskbarClockCheck);
+            TextBlock displayHint = UiTheme.MakeText(
+                "桌面悬浮窗可拖动并支持右键菜单；任务栏时钟固定显示在任务栏时间区，开启时会暂时隐藏系统自带时间。两者至少保留一个。",
+                11,
+                UiTheme.TextMuted,
+                FontWeights.Normal);
+            displayHint.TextWrapping = TextWrapping.Wrap;
+            displayHint.Margin = new Thickness(24, 3, 0, 0);
+            displayPanel.Children.Add(displayHint);
+            displayCard.Child = displayPanel;
+            panel.Children.Add(displayCard);
 
             Border fontCard = UiTheme.MakeCard();
             StackPanel fontPanel = new StackPanel();
@@ -132,6 +148,27 @@ namespace GameClock
             _working.ClickThrough = _clickThroughCheck.IsChecked == true;
             _working.Topmost = _topmostCheck.IsChecked == true;
             _working.StartWithWindows = _startWithWindowsCheck.IsChecked == true;
+            MarkDirty();
+        }
+
+        private void OnDisplaySurfaceChanged(object sender, RoutedEventArgs e)
+        {
+            if (_updating)
+            {
+                return;
+            }
+
+            bool desktop = _desktopOverlayCheck.IsChecked == true;
+            bool taskbar = _taskbarClockCheck.IsChecked == true;
+            if (!desktop && !taskbar)
+            {
+                // Keep at least one surface visible; the second event writes the flags.
+                _desktopOverlayCheck.IsChecked = true;
+                return;
+            }
+
+            _working.ShowDesktopOverlay = desktop;
+            _working.ShowTaskbarClock = taskbar;
             MarkDirty();
         }
 
