@@ -47,6 +47,30 @@ namespace GameClock
             public int Bottom;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetMonitorInfoW")]
+        public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
+
+        [DllImport("kernel32.dll")]
+        public static extern uint GetCurrentProcessId();
+
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out POINT point);
 
@@ -177,6 +201,9 @@ namespace GameClock
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out RECT value, int size);
 
         public static IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex)
         {
@@ -331,6 +358,77 @@ namespace GameClock
 
         [DllImport("shell32.dll")]
         public static extern int SHQueryUserNotificationState(out int state);
+
+        /// <summary>
+        /// 判断当前前台是否处于全屏（独占全屏或铺满整个显示器的无边框全屏）。
+        /// SHQueryUserNotificationState 对无边框全屏/浏览器 F11 不可靠，再按窗口矩形兜底。
+        /// </summary>
+        public static bool IsFullscreenForeground()
+        {
+            int state;
+            if (SHQueryUserNotificationState(out state) == 0
+                && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE))
+            {
+                return true;
+            }
+
+            IntPtr foreground = GetForegroundWindow();
+            if (foreground == IntPtr.Zero || !IsWindowVisible(foreground))
+            {
+                return false;
+            }
+
+            uint processId;
+            GetWindowThreadProcessId(foreground, out processId);
+            if (processId == GetCurrentProcessId())
+            {
+                // 自己的设置/面板/时钟窗口不算全屏应用。
+                return false;
+            }
+
+            StringBuilder className = new StringBuilder(256);
+            if (GetClassName(foreground, className, className.Capacity) > 0)
+            {
+                string name = className.ToString();
+                if (string.Equals(name, "Progman", StringComparison.Ordinal)
+                    || string.Equals(name, "WorkerW", StringComparison.Ordinal)
+                    || string.Equals(name, "Shell_TrayWnd", StringComparison.Ordinal)
+                    || string.Equals(name, "Shell_SecondaryTrayWnd", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            IntPtr monitor = MonitorFromWindow(foreground, 2);
+            if (monitor == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            MONITORINFO info = new MONITORINFO();
+            info.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
+            if (!GetMonitorInfo(monitor, ref info))
+            {
+                return false;
+            }
+
+            // 优先用 DWM 扩展边框：最大化窗口的真实客户区是工作区（不含任务栏），
+            // 不会因为不可见边框被误判为全屏。
+            RECT rect;
+            if (DwmGetWindowAttribute(foreground, 9, out rect, Marshal.SizeOf(typeof(RECT))) != 0)
+            {
+                if (!GetWindowRect(foreground, out rect))
+                {
+                    return false;
+                }
+            }
+
+            // 容忍 2px：个别全屏窗口的边框会略微超出显示器。
+            return rect.Left <= info.rcMonitor.Left + 2
+                && rect.Top <= info.rcMonitor.Top + 2
+                && rect.Right >= info.rcMonitor.Right - 2
+                && rect.Bottom >= info.rcMonitor.Bottom - 2;
+        }
 
         public const int WM_GETFONT = 0x0031;
 

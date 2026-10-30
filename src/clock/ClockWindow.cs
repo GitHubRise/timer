@@ -437,10 +437,7 @@ namespace GameClock
                 return;
             }
 
-            int state;
-            bool fullscreen = NativeMethods.SHQueryUserNotificationState(out state) == 0
-                && (state == NativeMethods.QUNS_RUNNING_D3D_FULL_SCREEN
-                    || state == NativeMethods.QUNS_PRESENTATION_MODE);
+            bool fullscreen = NativeMethods.IsFullscreenForeground();
 
             if (fullscreen)
             {
