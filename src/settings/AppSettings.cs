@@ -83,6 +83,12 @@ namespace GameClock
         [DataMember(Name = "taskbarFormat")]
         public string TaskbarFormat { get; set; }
 
+        [DataMember(Name = "taskbarFormatMode")]
+        public string TaskbarFormatMode { get; set; }
+
+        [DataMember(Name = "taskbarDotNetFormat")]
+        public string TaskbarDotNetFormat { get; set; }
+
         [DataMember(Name = "currentMode")]
         public string CurrentMode { get; set; }
 
@@ -170,6 +176,8 @@ namespace GameClock
             TaskbarFontSize = DefaultTaskbarFontSize;
             TaskbarColorHex = DefaultTaskbarColor;
             TaskbarFormat = FormatEngine.DefaultTaskbarTokenFormat;
+            TaskbarFormatMode = FormatEngine.ModeToken;
+            TaskbarDotNetFormat = TimeFormatter.DefaultFormat;
             CurrentMode = ReminderModes.Leisure;
             WeatherEnabled = true;
             WeatherCity = "北京";
@@ -298,6 +306,8 @@ namespace GameClock
             Color taskbarColor = ColorUtil.FromHex(TaskbarColorHex);
             TaskbarColorHex = ColorUtil.ToHex(taskbarColor);
             TaskbarFormat = FormatEngine.NormalizeTokenFormat(TaskbarFormat);
+            TaskbarFormatMode = FormatEngine.NormalizeMode(TaskbarFormatMode);
+            TaskbarDotNetFormat = TimeFormatter.NormalizeFormat(TaskbarDotNetFormat);
 
             if (Reminders == null)
             {

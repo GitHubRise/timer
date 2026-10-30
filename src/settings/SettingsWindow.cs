@@ -51,6 +51,14 @@ namespace GameClock
         private readonly TextBox _taskbarColorBox;
         private readonly TextBox _taskbarFormatBox;
         private readonly TextBlock _taskbarFormatStatus;
+        private readonly ComboBox _taskbarFormatCombo;
+        private readonly RadioButton _taskbarDotNetFormatRadio;
+        private readonly RadioButton _taskbarTokenFormatRadio;
+        private readonly TextBlock _taskbarFormatHintText;
+        private readonly List<TimeFormatPreset> _taskbarDotNetPresets;
+        private readonly List<TimeFormatPreset> _taskbarTokenPresets;
+        private readonly TimeFormatPreset _taskbarCustomPreset;
+        private List<TimeFormatPreset> _taskbarActivePresets;
         private readonly CheckBox _weatherEnabledCheck;
         private readonly TextBox _weatherCityBox;
         private readonly Button _weatherTestButton;
@@ -274,6 +282,51 @@ namespace GameClock
                 FontWeights.Normal);
             _taskbarFormatStatus.Margin = new Thickness(0, 6, 0, 0);
             _taskbarFormatStatus.TextWrapping = TextWrapping.Wrap;
+
+            _taskbarDotNetPresets = TimeFormatter.CreatePresets(presetSample);
+            _taskbarTokenPresets = FormatEngine.CreatePresets(presetSample);
+            _taskbarCustomPreset = new TimeFormatPreset("自定义格式", null, "使用下方输入框");
+            _taskbarDotNetPresets.Insert(0, _taskbarCustomPreset);
+            _taskbarTokenPresets.Insert(0, _taskbarCustomPreset);
+            _taskbarActivePresets = _taskbarTokenPresets;
+
+            _taskbarFormatCombo = new ComboBox();
+            UiTheme.ApplyComboBoxStyle(_taskbarFormatCombo);
+            _taskbarFormatCombo.ItemsSource = _taskbarActivePresets;
+            _taskbarFormatCombo.DisplayMemberPath = "Display";
+            _taskbarFormatCombo.MaxDropDownHeight = 360;
+            AutomationProperties.SetAutomationId(_taskbarFormatCombo, "TaskbarFormatPresetCombo");
+            AutomationProperties.SetName(_taskbarFormatCombo, "任务栏常用格式");
+
+            _taskbarDotNetFormatRadio = new RadioButton();
+            _taskbarDotNetFormatRadio.Content = "兼容 .NET";
+            _taskbarDotNetFormatRadio.GroupName = "TaskbarFormatMode";
+            _taskbarDotNetFormatRadio.Foreground = UiTheme.TextPrimary;
+            _taskbarDotNetFormatRadio.FontSize = 13;
+            _taskbarDotNetFormatRadio.Margin = new Thickness(0, 3, 22, 3);
+            _taskbarDotNetFormatRadio.VerticalContentAlignment = VerticalAlignment.Center;
+            _taskbarDotNetFormatRadio.ToolTip = "任务栏时钟使用 .NET 日期格式";
+            UiTheme.ApplyRadioButtonStyle(_taskbarDotNetFormatRadio);
+            AutomationProperties.SetAutomationId(_taskbarDotNetFormatRadio, "TaskbarDotNetFormatRadio");
+
+            _taskbarTokenFormatRadio = new RadioButton();
+            _taskbarTokenFormatRadio.Content = "简洁变量（默认）";
+            _taskbarTokenFormatRadio.GroupName = "TaskbarFormatMode";
+            _taskbarTokenFormatRadio.Foreground = UiTheme.TextPrimary;
+            _taskbarTokenFormatRadio.FontSize = 13;
+            _taskbarTokenFormatRadio.Margin = new Thickness(0, 3, 22, 3);
+            _taskbarTokenFormatRadio.VerticalContentAlignment = VerticalAlignment.Center;
+            _taskbarTokenFormatRadio.ToolTip = "任务栏时钟使用简洁变量格式";
+            UiTheme.ApplyRadioButtonStyle(_taskbarTokenFormatRadio);
+            AutomationProperties.SetAutomationId(_taskbarTokenFormatRadio, "TaskbarTokenFormatRadio");
+
+            _taskbarFormatHintText = UiTheme.MakeText(
+                "支持简洁变量。输入时实时更新，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。",
+                11,
+                UiTheme.TextMuted,
+                FontWeights.Normal);
+            _taskbarFormatHintText.Margin = new Thickness(0, 0, 0, 8);
+            _taskbarFormatHintText.TextWrapping = TextWrapping.Wrap;
 
             _weatherEnabledCheck = CreateCheckBox(
                 "显示天气预报（默认开启）",

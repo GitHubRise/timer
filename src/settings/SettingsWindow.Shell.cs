@@ -86,7 +86,7 @@ namespace GameClock
 
             _tabs.Items.Add(CreateTab("桌面悬浮窗", BuildAppearanceTab()));
             _tabs.Items.Add(CreateTab("任务栏时钟", BuildTaskbarTab()));
-            _tabs.Items.Add(CreateTab("时间格式", BuildFormatTab()));
+            _tabs.Items.Add(CreateTab("全局时间格式", BuildFormatTab()));
             _tabs.Items.Add(CreateTab("定时提醒", BuildRemindersTab()));
             _tabs.Items.Add(CreateTab("日程", BuildScheduleTab()));
             _tabs.Items.Add(CreateTab("天气", BuildWeatherTab()));
@@ -125,6 +125,10 @@ namespace GameClock
             _taskbarSizeSlider.ValueChanged += OnTaskbarSizeChanged;
             _taskbarColorBox.TextChanged += OnTaskbarColorChanged;
             _taskbarFormatBox.TextChanged += OnTaskbarFormatChanged;
+            _taskbarFormatBox.PreviewKeyDown += OnTaskbarFormatKeyDown;
+            _taskbarFormatCombo.SelectionChanged += OnTaskbarFormatPresetChanged;
+            _taskbarDotNetFormatRadio.Checked += OnTaskbarFormatModeChanged;
+            _taskbarTokenFormatRadio.Checked += OnTaskbarFormatModeChanged;
             _formatCombo.SelectionChanged += OnFormatPresetChanged;
             _formatBox.TextChanged += OnFormatTextChanged;
             _formatBox.PreviewKeyDown += OnFormatKeyDown;
@@ -192,9 +196,18 @@ namespace GameClock
             _taskbarSizeSlider.Value = _working.TaskbarFontSize;
             _taskbarSizeValueText.Text = ((int)Math.Round(_working.TaskbarFontSize)).ToString(CultureInfo.InvariantCulture) + " px";
             _taskbarColorBox.Text = _working.TaskbarColorHex;
-            _taskbarFormatBox.Text = _working.TaskbarFormat;
+            bool taskbarTokenMode = FormatEngine.IsTokenMode(_working.TaskbarFormatMode);
+            _taskbarDotNetFormatRadio.IsChecked = !taskbarTokenMode;
+            _taskbarTokenFormatRadio.IsChecked = taskbarTokenMode;
+            _taskbarActivePresets = taskbarTokenMode ? _taskbarTokenPresets : _taskbarDotNetPresets;
+            _taskbarFormatCombo.ItemsSource = _taskbarActivePresets;
+            _taskbarFormatBox.Text = taskbarTokenMode ? _working.TaskbarFormat : _working.TaskbarDotNetFormat;
             UpdateTaskbarColorUi();
-            _taskbarFormatStatus.Text = "简洁变量格式，支持两行；任务栏空间不足时会自动缩小字号。";
+            UpdateTaskbarFormatHint();
+            UpdateTaskbarFormatComboSelection();
+            _taskbarFormatStatus.Text = taskbarTokenMode
+                ? "简洁变量格式，支持两行；任务栏空间不足时会自动缩小字号。"
+                : ".NET 格式，支持两行；任务栏空间不足时会自动缩小字号。";
             _taskbarFormatStatus.Foreground = UiTheme.TextMuted;
 
             string mode = ReminderModes.Normalize(_working.CurrentMode);
@@ -421,14 +434,21 @@ namespace GameClock
                 _working.WeatherFormat = string.Empty;
             }
 
+            bool taskbarTokenMode = _taskbarTokenFormatRadio.IsChecked == true;
             string taskbarFormatText = (_taskbarFormatBox.Text ?? string.Empty).Trim();
             string normalizedTaskbarFormat;
             string taskbarFormatError;
-            if (!FormatEngine.TryNormalizeTokenFormat(
-                taskbarFormatText,
-                true,
-                out normalizedTaskbarFormat,
-                out taskbarFormatError))
+            bool taskbarFormatValid = taskbarTokenMode
+                ? FormatEngine.TryNormalizeTokenFormat(
+                    taskbarFormatText,
+                    true,
+                    out normalizedTaskbarFormat,
+                    out taskbarFormatError)
+                : TimeFormatter.TryNormalizeFormat(
+                    taskbarFormatText,
+                    out normalizedTaskbarFormat,
+                    out taskbarFormatError);
+            if (!taskbarFormatValid)
             {
                 _taskbarFormatStatus.Text = taskbarFormatError;
                 _taskbarFormatStatus.Foreground = UiTheme.Accent;
@@ -438,7 +458,16 @@ namespace GameClock
                 error = taskbarFormatError;
                 return false;
             }
-            _working.TaskbarFormat = normalizedTaskbarFormat;
+
+            _working.TaskbarFormatMode = taskbarTokenMode ? FormatEngine.ModeToken : FormatEngine.ModeDotNet;
+            if (taskbarTokenMode)
+            {
+                _working.TaskbarFormat = normalizedTaskbarFormat;
+            }
+            else
+            {
+                _working.TaskbarDotNetFormat = normalizedTaskbarFormat;
+            }
 
             TimeZoneChoice timeZoneChoice = _timeZoneCombo.SelectedItem as TimeZoneChoice;
             if (timeZoneChoice != null)

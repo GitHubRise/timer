@@ -52,6 +52,8 @@ namespace GameClock
             fontCard.Child = fontPanel;
             panel.Children.Add(fontCard);
 
+            panel.Children.Add(BuildOverlayFormatSection());
+
             Border effectCard = UiTheme.MakeCard();
             StackPanel effectPanel = new StackPanel();
             effectPanel.Children.Add(UiTheme.MakeSectionTitle("效果"));

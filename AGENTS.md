@@ -58,7 +58,8 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - `SettingsWindow` 按页签拆为多个 `partial` 文件：主文件只放字段、构造与公共骨架，新增页签成员进对应分部文件。
 - 新增设置项需同时修改 `AppSettings` 字段、`Normalize`/`Clone`、对应页签与持久化兼容路径；旧配置缺字段时按默认值处理。
 - 显示位置由 `ShowDesktopOverlay` / `ShowTaskbarClock` 控制，两个开关分属「桌面悬浮窗」「任务栏时钟」页签、互相独立，可同时关闭（关闭后该位置不显示）；窗口的创建、销毁与天气同步统一走 `AppController.ApplyDisplaySurfaces`，不要在设置窗口里直接开关窗口。
-- 任务栏显示使用独立设置 `TaskbarFontFamilyName` / `TaskbarFontSize` / `TaskbarColorHex` / `TaskbarFormat`，不要复用悬浮窗的字体与格式字段；默认格式见 `FormatEngine.DefaultTaskbarTokenFormat`。
+- 任务栏显示使用独立设置 `TaskbarFontFamilyName` / `TaskbarFontSize` / `TaskbarColorHex` / `TaskbarFormatMode` / `TaskbarFormat` / `TaskbarDotNetFormat`，不要复用悬浮窗的字体与格式字段；默认格式见 `FormatEngine.DefaultTaskbarTokenFormat`。
+- 格式语言与常用/自定义格式按显示位置各存一份：悬浮窗用 `FormatMode` / `TimeFormat` / `TokenTimeFormat`，任务栏用 `TaskbarFormatMode` / `TaskbarDotNetFormat` / `TaskbarFormat`；全局时间格式页只放时区与变量说明，不写格式。`TaskbarFormat` 始终存简洁变量，`TaskbarDotNetFormat` 始终存 .NET 格式。
 - 任务栏覆盖窗**不得隐藏** `TrayClockWClass`（会触发任务栏重排、托盘图标移位）；应把系统时钟移出任务栏保留占位，退出时再移回。`TrayClockWClass` 是任务栏子窗口，`SetWindowPos` 坐标相对父窗口，恢复位置前需用父窗口矩形换算。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -39,6 +39,49 @@ namespace GameClock
             timeZoneCard.Child = timeZonePanel;
             panel.Children.Add(timeZoneCard);
 
+            panel.Children.Add(BuildFormatScopeHint());
+
+            Border helpCard = UiTheme.MakeCard();
+            StackPanel helpPanel = new StackPanel();
+            helpPanel.Children.Add(UiTheme.MakeSectionTitle("格式说明"));
+            TextBlock helpHint = UiTheme.MakeText(
+                "支持检索：输入变量名、说明或示例关键词。一行一个变量：格式：描述。示例预览：预览。",
+                11,
+                UiTheme.TextMuted,
+                FontWeights.Normal);
+            helpHint.Margin = new Thickness(0, 0, 0, 8);
+            helpHint.TextWrapping = TextWrapping.Wrap;
+            helpPanel.Children.Add(helpHint);
+            helpPanel.Children.Add(_formatHelpSearchBox);
+            helpPanel.Children.Add(_formatHelpCount);
+            helpPanel.Children.Add(_formatHelpScroll);
+
+            helpCard.Child = helpPanel;
+            panel.Children.Add(helpCard);
+
+            return panel;
+        }
+
+        private UIElement BuildFormatScopeHint()
+        {
+            Border card = UiTheme.MakeCard();
+            StackPanel panel = new StackPanel();
+            panel.Children.Add(UiTheme.MakeSectionTitle("各时钟的显示格式"));
+            TextBlock hint = UiTheme.MakeText(
+                "桌面悬浮窗与任务栏时钟各自保存格式语言、常用格式与自定义格式，请到对应页签修改。本页只设置全局时区与变量说明。",
+                11,
+                UiTheme.TextMuted,
+                FontWeights.Normal);
+            hint.TextWrapping = TextWrapping.Wrap;
+            panel.Children.Add(hint);
+            card.Child = panel;
+            return card;
+        }
+
+        private UIElement BuildOverlayFormatSection()
+        {
+            StackPanel section = new StackPanel();
+
             Border presetCard = UiTheme.MakeCard();
             StackPanel presetPanel = new StackPanel();
             presetPanel.Children.Add(UiTheme.MakeSectionTitle("格式语言"));
@@ -56,7 +99,7 @@ namespace GameClock
             modeRow.Children.Add(_tokenFormatRadio);
             presetPanel.Children.Add(modeRow);
             presetCard.Child = presetPanel;
-            panel.Children.Add(presetCard);
+            section.Children.Add(presetCard);
 
             Border presetsCard = UiTheme.MakeCard();
             StackPanel presetsPanel = new StackPanel();
@@ -70,7 +113,7 @@ namespace GameClock
             presetsPanel.Children.Add(presetHint);
             presetsPanel.Children.Add(_formatCombo);
             presetsCard.Child = presetsPanel;
-            panel.Children.Add(presetsCard);
+            section.Children.Add(presetsCard);
 
             Border customCard = UiTheme.MakeCard();
             StackPanel customPanel = new StackPanel();
@@ -104,27 +147,9 @@ namespace GameClock
             customPanel.Children.Add(actions);
             customPanel.Children.Add(_formatStatus);
             customCard.Child = customPanel;
-            panel.Children.Add(customCard);
+            section.Children.Add(customCard);
 
-            Border helpCard = UiTheme.MakeCard();
-            StackPanel helpPanel = new StackPanel();
-            helpPanel.Children.Add(UiTheme.MakeSectionTitle("格式说明"));
-            TextBlock helpHint = UiTheme.MakeText(
-                "支持检索：输入变量名、说明或示例关键词。一行一个变量：格式：描述。示例预览：预览。",
-                11,
-                UiTheme.TextMuted,
-                FontWeights.Normal);
-            helpHint.Margin = new Thickness(0, 0, 0, 8);
-            helpHint.TextWrapping = TextWrapping.Wrap;
-            helpPanel.Children.Add(helpHint);
-            helpPanel.Children.Add(_formatHelpSearchBox);
-            helpPanel.Children.Add(_formatHelpCount);
-            helpPanel.Children.Add(_formatHelpScroll);
-
-            helpCard.Child = helpPanel;
-            panel.Children.Add(helpCard);
-
-            return panel;
+            return section;
         }
 
         private void OnFormatModeChanged(object sender, RoutedEventArgs e)

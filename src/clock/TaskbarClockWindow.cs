@@ -115,6 +115,8 @@ namespace GameClock
             _settings.TaskbarFontFamilyName = copy.TaskbarFontFamilyName;
             _settings.TaskbarFontSize = copy.TaskbarFontSize;
             _settings.TaskbarFormat = copy.TaskbarFormat;
+            _settings.TaskbarFormatMode = copy.TaskbarFormatMode;
+            _settings.TaskbarDotNetFormat = copy.TaskbarDotNetFormat;
             _settings.TimeZoneId = copy.TimeZoneId;
             _timeZone = TimeZoneCatalog.GetZone(_settings.TimeZoneId);
 
@@ -159,7 +161,9 @@ namespace GameClock
         private void UpdateText(bool force)
         {
             DateTime now = TimeZoneCatalog.GetNow(_timeZone);
-            string text = FormatEngine.Format(now, _weather, _settings.TaskbarFormat);
+            string text = FormatEngine.IsTokenMode(_settings.TaskbarFormatMode)
+                ? FormatEngine.Format(now, _weather, _settings.TaskbarFormat)
+                : TimeFormatter.Format(now, _settings.TaskbarDotNetFormat);
 
             if (!force && string.Equals(text, _clockText.Text, StringComparison.Ordinal))
             {

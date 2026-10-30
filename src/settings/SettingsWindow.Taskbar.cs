@@ -1,7 +1,9 @@
 using System;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace GameClock
@@ -53,23 +55,83 @@ namespace GameClock
             fontCard.Child = fontPanel;
             panel.Children.Add(fontCard);
 
-            Border formatCard = UiTheme.MakeCard();
-            StackPanel formatPanel = new StackPanel();
-            formatPanel.Children.Add(UiTheme.MakeSectionTitle("显示格式"));
-            TextBlock formatHint = UiTheme.MakeText(
-                "简洁变量格式，支持两行。默认第一行日期时间，第二行农历、星期与温度；变量说明见「时间格式」页签。",
+            panel.Children.Add(BuildTaskbarFormatSection());
+
+            return panel;
+        }
+
+        private UIElement BuildTaskbarFormatSection()
+        {
+            StackPanel section = new StackPanel();
+
+            Border modeCard = UiTheme.MakeCard();
+            StackPanel modePanel = new StackPanel();
+            modePanel.Children.Add(UiTheme.MakeSectionTitle("格式语言"));
+            TextBlock modeHint = UiTheme.MakeText(
+                "“兼容 .NET”使用传统日期格式；“简洁变量”支持农历、干支、星期和天气变量。两种格式分别保存，切换不会丢失。",
                 11,
                 UiTheme.TextMuted,
                 FontWeights.Normal);
-            formatHint.TextWrapping = TextWrapping.Wrap;
-            formatHint.Margin = new Thickness(0, 0, 0, 8);
-            formatPanel.Children.Add(formatHint);
-            formatPanel.Children.Add(_taskbarFormatBox);
-            formatPanel.Children.Add(_taskbarFormatStatus);
-            formatCard.Child = formatPanel;
-            panel.Children.Add(formatCard);
+            modeHint.Margin = new Thickness(0, 0, 0, 8);
+            modeHint.TextWrapping = TextWrapping.Wrap;
+            modePanel.Children.Add(modeHint);
+            StackPanel modeRow = new StackPanel();
+            modeRow.Orientation = Orientation.Horizontal;
+            modeRow.Children.Add(_taskbarDotNetFormatRadio);
+            modeRow.Children.Add(_taskbarTokenFormatRadio);
+            modePanel.Children.Add(modeRow);
+            modeCard.Child = modePanel;
+            section.Children.Add(modeCard);
 
-            return panel;
+            Border presetsCard = UiTheme.MakeCard();
+            StackPanel presetsPanel = new StackPanel();
+            presetsPanel.Children.Add(UiTheme.MakeSectionTitle("常用格式（内置）"));
+            TextBlock presetHint = UiTheme.MakeText(
+                "直接选择即可，不需要修改格式。示例使用当前日期时间生成。",
+                11,
+                UiTheme.TextMuted,
+                FontWeights.Normal);
+            presetHint.Margin = new Thickness(0, 0, 0, 8);
+            presetsPanel.Children.Add(presetHint);
+            presetsPanel.Children.Add(_taskbarFormatCombo);
+            presetsCard.Child = presetsPanel;
+            section.Children.Add(presetsCard);
+
+            Border customCard = UiTheme.MakeCard();
+            StackPanel customPanel = new StackPanel();
+            customPanel.Children.Add(UiTheme.MakeSectionTitle("自定义格式"));
+            customPanel.Children.Add(_taskbarFormatHintText);
+            customPanel.Children.Add(_taskbarFormatBox);
+
+            Grid actions = new Grid();
+            actions.Margin = new Thickness(0, 8, 0, 0);
+            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            Button newlineButton = new Button();
+            newlineButton.Content = "插入换行";
+            newlineButton.Style = UiTheme.SecondaryButtonStyle;
+            newlineButton.Padding = new Thickness(12, 5, 12, 5);
+            newlineButton.Height = 30;
+            newlineButton.HorizontalAlignment = HorizontalAlignment.Left;
+            newlineButton.Click += OnTaskbarInsertNewline;
+            newlineButton.ToolTip = "格式最多支持一个换行（两行文字）";
+            AutomationProperties.SetAutomationId(newlineButton, "TaskbarInsertNewlineButton");
+            actions.Children.Add(newlineButton);
+            Grid.SetColumn(newlineButton, 0);
+
+            TextBlock hintRight = UiTheme.MakeText("输入即更新，也可以直接保存。", 11, UiTheme.TextMuted, FontWeights.Normal);
+            hintRight.VerticalAlignment = VerticalAlignment.Center;
+            hintRight.HorizontalAlignment = HorizontalAlignment.Right;
+            actions.Children.Add(hintRight);
+            Grid.SetColumn(hintRight, 1);
+
+            customPanel.Children.Add(actions);
+            customPanel.Children.Add(_taskbarFormatStatus);
+            customCard.Child = customPanel;
+            section.Children.Add(customCard);
+
+            return section;
         }
 
         private UIElement BuildTaskbarColorRow()
@@ -139,12 +201,104 @@ namespace GameClock
                 return;
             }
 
-            string text = _taskbarFormatBox.Text ?? string.Empty;
+            HandleTaskbarFormatTextChanged();
+        }
+
+        private void OnTaskbarFormatModeChanged(object sender, RoutedEventArgs e)
+        {
+            if (_updating)
+            {
+                return;
+            }
+
+            bool tokenMode = _taskbarTokenFormatRadio.IsChecked == true;
+            string newMode = tokenMode ? FormatEngine.ModeToken : FormatEngine.ModeDotNet;
+            if (string.Equals(_working.TaskbarFormatMode, newMode, StringComparison.Ordinal))
+            {
+                UpdateTaskbarFormatHint();
+                return;
+            }
+
+            if (FormatEngine.IsTokenMode(_working.TaskbarFormatMode))
+            {
+                _working.TaskbarFormat = _taskbarFormatBox.Text ?? string.Empty;
+            }
+            else
+            {
+                _working.TaskbarDotNetFormat = _taskbarFormatBox.Text ?? string.Empty;
+            }
+
+            _working.TaskbarFormatMode = newMode;
+            _taskbarActivePresets = tokenMode ? _taskbarTokenPresets : _taskbarDotNetPresets;
+
+            _updating = true;
+            try
+            {
+                _taskbarFormatCombo.ItemsSource = _taskbarActivePresets;
+                _taskbarFormatBox.Text = tokenMode ? _working.TaskbarFormat : _working.TaskbarDotNetFormat;
+            }
+            finally
+            {
+                _updating = false;
+            }
+
+            UpdateTaskbarFormatHint();
+            HandleTaskbarFormatTextChanged();
+            MarkDirty();
+        }
+
+        private void UpdateTaskbarFormatHint()
+        {
+            bool tokenMode = _taskbarTokenFormatRadio.IsChecked == true;
+            _taskbarFormatHintText.Text = tokenMode
+                ? "支持简洁变量（区分大小写；mm 是月份、ff 是分钟）。输入时实时更新，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。"
+                : "支持 .NET 日期格式（MM 是月份、mm 是分钟）。输入时实时更新，无需回车；Enter 应用预览，Ctrl+Enter 插入一个换行。";
+        }
+
+        private void OnTaskbarFormatPresetChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_updating)
+            {
+                return;
+            }
+
+            TimeFormatPreset preset = _taskbarFormatCombo.SelectedItem as TimeFormatPreset;
+            if (preset == null || string.IsNullOrEmpty(preset.Format))
+            {
+                return;
+            }
+
+            _updating = true;
+            try
+            {
+                _taskbarFormatBox.Text = preset.Format;
+            }
+            finally
+            {
+                _updating = false;
+            }
+            HandleTaskbarFormatTextChanged();
+        }
+
+        private void HandleTaskbarFormatTextChanged()
+        {
+            bool tokenMode = _taskbarTokenFormatRadio.IsChecked == true;
             string normalized;
             string error;
-            if (FormatEngine.TryNormalizeTokenFormat(text, true, out normalized, out error))
+            bool valid = tokenMode
+                ? FormatEngine.TryNormalizeTokenFormat(_taskbarFormatBox.Text, true, out normalized, out error)
+                : TimeFormatter.TryNormalizeFormat(_taskbarFormatBox.Text, out normalized, out error);
+
+            if (valid)
             {
-                _working.TaskbarFormat = normalized;
+                if (tokenMode)
+                {
+                    _working.TaskbarFormat = normalized;
+                }
+                else
+                {
+                    _working.TaskbarDotNetFormat = normalized;
+                }
                 _taskbarFormatStatus.Text = "格式有效，保存后应用到任务栏时钟。";
                 _taskbarFormatStatus.Foreground = UiTheme.TextMuted;
             }
@@ -153,7 +307,74 @@ namespace GameClock
                 _taskbarFormatStatus.Text = error;
                 _taskbarFormatStatus.Foreground = UiTheme.Accent;
             }
+
+            UpdateTaskbarFormatComboSelection();
             MarkDirty();
+        }
+
+        private void UpdateTaskbarFormatComboSelection()
+        {
+            TimeFormatPreset match = null;
+            for (int i = 0; i < _taskbarActivePresets.Count; i++)
+            {
+                if (string.Equals(_taskbarActivePresets[i].Format, _taskbarFormatBox.Text, StringComparison.Ordinal))
+                {
+                    match = _taskbarActivePresets[i];
+                    break;
+                }
+            }
+
+            _updating = true;
+            try
+            {
+                _taskbarFormatCombo.SelectedItem = match != null ? (object)match : _taskbarCustomPreset;
+            }
+            finally
+            {
+                _updating = false;
+            }
+        }
+
+        private void OnTaskbarFormatKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter)
+            {
+                return;
+            }
+
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                InsertTaskbarFormatNewline();
+            }
+            else
+            {
+                HandleTaskbarFormatTextChanged();
+            }
+            e.Handled = true;
+        }
+
+        private void OnTaskbarInsertNewline(object sender, RoutedEventArgs e)
+        {
+            InsertTaskbarFormatNewline();
+        }
+
+        private void InsertTaskbarFormatNewline()
+        {
+            if (TimeFormatter.CountNewlines(_taskbarFormatBox.Text) >= 1)
+            {
+                _taskbarFormatStatus.Text = "最多只能插入一个换行。";
+                _taskbarFormatStatus.Foreground = UiTheme.Accent;
+                return;
+            }
+
+            int caret = _taskbarFormatBox.CaretIndex;
+            if (caret < 0)
+            {
+                caret = _taskbarFormatBox.Text.Length;
+            }
+            _taskbarFormatBox.Text = _taskbarFormatBox.Text.Insert(caret, "\n");
+            _taskbarFormatBox.CaretIndex = caret + 1;
+            HandleTaskbarFormatTextChanged();
         }
 
         private void UpdateTaskbarColorUi()
