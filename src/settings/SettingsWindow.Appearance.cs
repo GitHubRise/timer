@@ -76,8 +76,9 @@ namespace GameClock
             windowPanel.Children.Add(_clickThroughCheck);
             windowPanel.Children.Add(_topmostCheck);
             windowPanel.Children.Add(_startWithWindowsCheck);
+            windowPanel.Children.Add(_hideFullscreenCheck);
             TextBlock windowHint = UiTheme.MakeText(
-                "穿透开启后，时钟上的右键菜单不可用，请右键系统托盘图标恢复。",
+                "穿透开启后，时钟上的右键菜单不可用，请右键系统托盘图标恢复；全屏隐藏会在检测到全屏游戏或视频时暂时隐藏悬浮窗。",
                 11,
                 UiTheme.TextMuted,
                 FontWeights.Normal);
@@ -149,6 +150,7 @@ namespace GameClock
             _working.ClickThrough = _clickThroughCheck.IsChecked == true;
             _working.Topmost = _topmostCheck.IsChecked == true;
             _working.StartWithWindows = _startWithWindowsCheck.IsChecked == true;
+            _working.HideOnFullscreen = _hideFullscreenCheck.IsChecked == true;
             MarkDirty();
         }
 

@@ -214,6 +214,12 @@ namespace GameClock
             SetTopmost(hWnd, true);
         }
 
+        public const int QUNS_RUNNING_D3D_FULL_SCREEN = 3;
+        public const int QUNS_PRESENTATION_MODE = 4;
+
+        [DllImport("shell32.dll")]
+        public static extern int SHQueryUserNotificationState(out int state);
+
         public static void TryUseDarkTitleBar(IntPtr hWnd)
         {
             if (hWnd == IntPtr.Zero)

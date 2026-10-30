@@ -63,6 +63,7 @@ namespace GameClock
             _clock = new ClockWindow(_settings);
             _clock.MenuRequested += OnClockMenuRequested;
             _clock.PositionChanged += OnClockPositionChanged;
+            _clock.ScaleChanged += OnClockScaleChanged;
             _clock.ReminderTriggered += OnClockReminderTriggered;
             _clock.ScheduleTriggered += OnClockScheduleTriggered;
             _clock.Show();
@@ -180,6 +181,11 @@ namespace GameClock
         }
 
         private void OnClockPositionChanged(object sender, EventArgs e)
+        {
+            ScheduleSave();
+        }
+
+        private void OnClockScaleChanged(object sender, EventArgs e)
         {
             ScheduleSave();
         }

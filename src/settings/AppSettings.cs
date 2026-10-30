@@ -71,6 +71,9 @@ namespace GameClock
         [DataMember(Name = "showTaskbarClock")]
         public bool ShowTaskbarClock { get; set; }
 
+        [DataMember(Name = "hideOnFullscreen")]
+        public bool HideOnFullscreen { get; set; }
+
         [DataMember(Name = "taskbarFontFamily")]
         public string TaskbarFontFamilyName { get; set; }
 
@@ -172,6 +175,7 @@ namespace GameClock
             StartWithWindows = false;
             ShowDesktopOverlay = true;
             ShowTaskbarClock = false;
+            HideOnFullscreen = true;
             TaskbarFontFamilyName = DefaultTaskbarFont;
             TaskbarFontSize = DefaultTaskbarFontSize;
             TaskbarColorHex = DefaultTaskbarColor;

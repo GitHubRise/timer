@@ -42,6 +42,7 @@ namespace GameClock
         private readonly CheckBox _clickThroughCheck;
         private readonly CheckBox _topmostCheck;
         private readonly CheckBox _startWithWindowsCheck;
+        private readonly CheckBox _hideFullscreenCheck;
         private readonly CheckBox _desktopOverlayCheck;
         private readonly CheckBox _taskbarClockCheck;
         private readonly ComboBox _taskbarFontCombo;
@@ -220,6 +221,11 @@ namespace GameClock
                 false,
                 "StartWithWindowsCheck",
                 "登录 Windows 后自动启动时间悬浮窗；不需要管理员权限。");
+            _hideFullscreenCheck = CreateCheckBox(
+                "全屏时自动隐藏",
+                true,
+                "HideFullscreenCheck",
+                "检测到游戏或全屏视频时暂时隐藏悬浮窗，退出全屏后自动恢复。");
             _desktopOverlayCheck = CreateCheckBox(
                 "显示桌面悬浮窗",
                 true,

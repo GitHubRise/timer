@@ -28,6 +28,7 @@ namespace GameClock
         private readonly DispatcherTimer _topmostTimer;
         private readonly DispatcherTimer _reminderTimer;
         private readonly DispatcherTimer _reminderHoverTimer;
+        private readonly DispatcherTimer _fullscreenTimer;
         private readonly Queue<ReminderNotice> _reminderQueue;
 
         private HwndSource _source;
@@ -35,6 +36,7 @@ namespace GameClock
         private bool _positionReady;
         private bool _applyingPosition;
         private bool _topmostWatchSuspended;
+        private bool _hiddenForFullscreen;
         private bool _reminderVisible;
         private DateTime? _reminderHoverStartedUtc;
         private string _lastDisplayText;
@@ -42,6 +44,7 @@ namespace GameClock
 
         public event EventHandler MenuRequested;
         public event EventHandler PositionChanged;
+        public event EventHandler ScaleChanged;
         public event EventHandler<ReminderEventArgs> ReminderTriggered;
         public event EventHandler<ScheduleTriggeredEventArgs> ScheduleTriggered;
 
@@ -159,12 +162,17 @@ namespace GameClock
             _reminderHoverTimer.Interval = TimeSpan.FromMilliseconds(150);
             _reminderHoverTimer.Tick += OnReminderHoverTick;
 
+            _fullscreenTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _fullscreenTimer.Interval = TimeSpan.FromSeconds(1.0);
+            _fullscreenTimer.Tick += OnFullscreenTick;
+
             Loaded += OnLoaded;
             Closed += OnClosed;
             LocationChanged += OnLocationChanged;
             SizeChanged += OnSizeChanged;
             _root.MouseLeftButtonDown += OnMouseLeftButtonDown;
             _root.MouseRightButtonUp += OnMouseRightButtonUp;
+            _root.MouseWheel += OnMouseWheel;
 
             ApplyVisuals();
             UpdateClock(true);
@@ -193,6 +201,11 @@ namespace GameClock
             Opacity = _settings.Opacity;
             Topmost = _settings.Topmost;
             ApplyReminderDisplaySettings();
+
+            if (!_settings.HideOnFullscreen)
+            {
+                RestoreFromFullscreen();
+            }
 
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
             NativeMethods.ApplyOverlayStyles(hwnd, _settings.ClickThrough);
@@ -305,6 +318,7 @@ namespace GameClock
             RefreshWeatherText();
             _clockTimer.Start();
             _topmostTimer.Start();
+            _fullscreenTimer.Start();
         }
 
         private void OnClosed(object sender, EventArgs e)
@@ -313,6 +327,7 @@ namespace GameClock
             _topmostTimer.Stop();
             _reminderTimer.Stop();
             _reminderHoverTimer.Stop();
+            _fullscreenTimer.Stop();
             if (_source != null)
             {
                 _source.RemoveHook(WndProc);
@@ -382,6 +397,79 @@ namespace GameClock
             {
                 MenuRequested(this, EventArgs.Empty);
             }
+        }
+
+        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (_settings.ClickThrough || e.Delta == 0)
+            {
+                return;
+            }
+
+            double step = e.Delta > 0 ? 4.0 : -4.0;
+            double next = _settings.FontSize + step;
+            next = Math.Max(AppSettings.MinFontSize, Math.Min(AppSettings.MaxFontSize, next));
+            if (Math.Abs(next - _settings.FontSize) < 0.01)
+            {
+                return;
+            }
+
+            e.Handled = true;
+            _settings.FontSize = next;
+            ApplyVisuals();
+            if (ScaleChanged != null)
+            {
+                ScaleChanged(this, EventArgs.Empty);
+            }
+        }
+
+        private void OnFullscreenTick(object sender, EventArgs e)
+        {
+            if (!_loaded)
+            {
+                return;
+            }
+
+            if (!_settings.HideOnFullscreen)
+            {
+                RestoreFromFullscreen();
+                return;
+            }
+
+            int state;
+            bool fullscreen = NativeMethods.SHQueryUserNotificationState(out state) == 0
+                && (state == NativeMethods.QUNS_RUNNING_D3D_FULL_SCREEN
+                    || state == NativeMethods.QUNS_PRESENTATION_MODE);
+
+            if (fullscreen)
+            {
+                if (IsVisible && !_hiddenForFullscreen)
+                {
+                    _hiddenForFullscreen = true;
+                    Hide();
+                }
+            }
+            else if (_hiddenForFullscreen)
+            {
+                RestoreFromFullscreen();
+            }
+        }
+
+        private void RestoreFromFullscreen()
+        {
+            if (!_hiddenForFullscreen)
+            {
+                return;
+            }
+
+            _hiddenForFullscreen = false;
+            Show();
+            Opacity = _settings.Opacity;
+
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            NativeMethods.ApplyOverlayStyles(hwnd, _settings.ClickThrough);
+            NativeMethods.SetTopmost(hwnd, _settings.Topmost);
+            ReassertTopmost();
         }
 
         private void OnLocationChanged(object sender, EventArgs e)

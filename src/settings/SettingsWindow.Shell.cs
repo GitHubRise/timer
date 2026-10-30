@@ -117,6 +117,8 @@ namespace GameClock
             _topmostCheck.Unchecked += OnBehaviorChanged;
             _startWithWindowsCheck.Checked += OnBehaviorChanged;
             _startWithWindowsCheck.Unchecked += OnBehaviorChanged;
+            _hideFullscreenCheck.Checked += OnBehaviorChanged;
+            _hideFullscreenCheck.Unchecked += OnBehaviorChanged;
             _desktopOverlayCheck.Checked += OnDisplaySurfaceChanged;
             _desktopOverlayCheck.Unchecked += OnDisplaySurfaceChanged;
             _taskbarClockCheck.Checked += OnDisplaySurfaceChanged;
@@ -180,6 +182,7 @@ namespace GameClock
             _clickThroughCheck.IsChecked = _working.ClickThrough;
             _topmostCheck.IsChecked = _working.Topmost;
             _startWithWindowsCheck.IsChecked = _working.StartWithWindows;
+            _hideFullscreenCheck.IsChecked = _working.HideOnFullscreen;
             _desktopOverlayCheck.IsChecked = _working.ShowDesktopOverlay;
             _taskbarClockCheck.IsChecked = _working.ShowTaskbarClock;
 
@@ -489,6 +492,7 @@ namespace GameClock
             _working.ClickThrough = _clickThroughCheck.IsChecked == true;
             _working.Topmost = _topmostCheck.IsChecked == true;
             _working.StartWithWindows = _startWithWindowsCheck.IsChecked == true;
+            _working.HideOnFullscreen = _hideFullscreenCheck.IsChecked == true;
             _working.ShowDesktopOverlay = _desktopOverlayCheck.IsChecked == true;
             _working.ShowTaskbarClock = _taskbarClockCheck.IsChecked == true;
             FontChoice taskbarFont = _taskbarFontCombo.SelectedItem as FontChoice;
