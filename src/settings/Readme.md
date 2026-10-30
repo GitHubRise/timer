@@ -8,7 +8,7 @@
 - `SettingsWindow.cs`：字段、构造、窗口骨架、公共控件工厂、预览、提交与默认值。
 - `SettingsWindow.Shell.cs`：页签容器、标题栏、关闭与键盘行为。
 - `SettingsWindow.Chrome.cs`：窗口外观、行为、透明度、颜色与预览刷新。
-- `SettingsWindow.Appearance.cs`、`.Taskbar.cs`、`.Format.cs`、`.Reminders.cs`、`.Schedule.cs`、`.Weather.cs`：各页签的构建与事件；`.Taskbar.cs` 管任务栏独立字体、颜色、格式语言与两行格式；`.Format.cs` 的“全局时间格式”页只放时区与变量说明，并提供悬浮窗格式区 `BuildOverlayFormatSection()`。
+- `SettingsWindow.Appearance.cs`、`.Taskbar.cs`、`.Format.cs`、`.Reminders.cs`、`.Schedule.cs`、`.Weather.cs`：各页签的构建与事件；`.Taskbar.cs` 管任务栏独立字体、颜色、格式语言与两行格式；`.Format.cs` 的“全局时间格式”页只放时区（含「同步系统时区」按钮）与变量说明，并提供悬浮窗格式区 `BuildOverlayFormatSection()`。
 - `ScheduleEditorWindow.cs`：日程添加/编辑弹框。
 - `AboutWindow.cs`：版本、编译号、运行环境。
 

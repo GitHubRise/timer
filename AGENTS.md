@@ -60,6 +60,9 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 显示位置由 `ShowDesktopOverlay` / `ShowTaskbarClock` 控制，两个开关分属「桌面悬浮窗」「任务栏时钟」页签、互相独立，可同时关闭（关闭后该位置不显示）；窗口的创建、销毁与天气同步统一走 `AppController.ApplyDisplaySurfaces`，不要在设置窗口里直接开关窗口。
 - 任务栏显示使用独立设置 `TaskbarFontFamilyName` / `TaskbarFontSize` / `TaskbarColorHex` / `TaskbarFormatMode` / `TaskbarFormat` / `TaskbarDotNetFormat`，不要复用悬浮窗的字体与格式字段；默认格式见 `FormatEngine.DefaultTaskbarTokenFormat`。
 - 格式语言与常用/自定义格式按显示位置各存一份：悬浮窗用 `FormatMode` / `TimeFormat` / `TokenTimeFormat`，任务栏用 `TaskbarFormatMode` / `TaskbarDotNetFormat` / `TaskbarFormat`；全局时间格式页只放时区与变量说明，不写格式。`TaskbarFormat` 始终存简洁变量，`TaskbarDotNetFormat` 始终存 .NET 格式。
+- 悬浮窗交互：拖动由 `_root.MouseLeftButtonDown → DragMove()` 负责；滚轮只缩放字号（步长 4，Clamp 16–160），改 `FontSize` 后重绘并通过 `ScaleChanged` 通知控制器防抖保存，不得用滚轮改透明度或位置。
+- 全屏隐藏由 `SHQueryUserNotificationState` 返回的 `QUNS_RUNNING_D3D_FULL_SCREEN`(3) / `QUNS_PRESENTATION_MODE`(4) 驱动，1 秒轮询；只 `Hide()`/`Show()` 窗口，不停止时钟、提醒与日程计时器；关闭设置后必须立即恢复显示。
+- 时区同步统一走 `TimeZoneCatalog.GetSystemId()`（内部读 `TimeZoneInfo.Local`），设置窗口不得直接读 `TimeZoneInfo.Local`；「同步系统时区」只改编辑副本，点「应用」后落盘。
 - 任务栏覆盖窗**不得隐藏** `TrayClockWClass`（会触发任务栏重排、托盘图标移位）；应把系统时钟移出任务栏保留占位，退出时再移回。`TrayClockWClass` 是任务栏子窗口，`SetWindowPos` 坐标相对父窗口，恢复位置前需用父窗口矩形换算。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
 
