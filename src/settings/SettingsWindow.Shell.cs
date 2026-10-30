@@ -127,9 +127,6 @@ namespace GameClock
             _desktopOverlayCheck.Unchecked += OnDisplaySurfaceChanged;
             _taskbarClockCheck.Checked += OnDisplaySurfaceChanged;
             _taskbarClockCheck.Unchecked += OnDisplaySurfaceChanged;
-            _taskbarFontCombo.SelectionChanged += OnTaskbarFontChanged;
-            _taskbarSizeSlider.ValueChanged += OnTaskbarSizeChanged;
-            _taskbarColorBox.TextChanged += OnTaskbarColorChanged;
             _taskbarFormatBox.TextChanged += OnTaskbarFormatChanged;
             _taskbarFormatBox.PreviewKeyDown += OnTaskbarFormatKeyDown;
             _taskbarFormatCombo.SelectionChanged += OnTaskbarFormatPresetChanged;
@@ -190,26 +187,12 @@ namespace GameClock
             _desktopOverlayCheck.IsChecked = _working.ShowDesktopOverlay;
             _taskbarClockCheck.IsChecked = _working.ShowTaskbarClock;
 
-            FontChoice taskbarFont = FontCatalog.FindChoice(_fontChoices, _working.TaskbarFontFamilyName);
-            if (taskbarFont == null)
-            {
-                taskbarFont = FontCatalog.FindChoice(_fontChoices, "Microsoft YaHei UI");
-            }
-            if (taskbarFont == null)
-            {
-                taskbarFont = FontCatalog.FindChoice(_fontChoices, FontCatalog.DefaultFont);
-            }
-            _taskbarFontCombo.SelectedItem = taskbarFont;
-            _taskbarSizeSlider.Value = _working.TaskbarFontSize;
-            _taskbarSizeValueText.Text = ((int)Math.Round(_working.TaskbarFontSize)).ToString(CultureInfo.InvariantCulture) + " px";
-            _taskbarColorBox.Text = _working.TaskbarColorHex;
             bool taskbarTokenMode = FormatEngine.IsTokenMode(_working.TaskbarFormatMode);
             _taskbarDotNetFormatRadio.IsChecked = !taskbarTokenMode;
             _taskbarTokenFormatRadio.IsChecked = taskbarTokenMode;
             _taskbarActivePresets = taskbarTokenMode ? _taskbarTokenPresets : _taskbarDotNetPresets;
             _taskbarFormatCombo.ItemsSource = _taskbarActivePresets;
             _taskbarFormatBox.Text = taskbarTokenMode ? _working.TaskbarFormat : _working.TaskbarDotNetFormat;
-            UpdateTaskbarColorUi();
             UpdateTaskbarFormatHint();
             UpdateTaskbarFormatComboSelection();
             _taskbarFormatStatus.Text = taskbarTokenMode
@@ -499,13 +482,6 @@ namespace GameClock
             _working.HideOnFullscreen = _hideFullscreenCheck.IsChecked == true;
             _working.ShowDesktopOverlay = _desktopOverlayCheck.IsChecked == true;
             _working.ShowTaskbarClock = _taskbarClockCheck.IsChecked == true;
-            FontChoice taskbarFont = _taskbarFontCombo.SelectedItem as FontChoice;
-            if (taskbarFont != null)
-            {
-                _working.TaskbarFontFamilyName = taskbarFont.Name;
-            }
-            _working.TaskbarFontSize = _taskbarSizeSlider.Value;
-            _working.TaskbarColorHex = ColorUtil.ToHex(ColorUtil.FromHex(_taskbarColorBox.Text));
             _working.CurrentMode = _workModeRadio.IsChecked == true
                 ? ReminderModes.Work
                 : ReminderModes.Leisure;

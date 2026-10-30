@@ -4,7 +4,7 @@
 
 ## 1. 项目定位
 
-Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统托盘，显示时间、天气、定时提醒与日程，支持鼠标穿透与开机自启。显示位置有两种，各自在独立页签里开关（可同时关闭）：桌面悬浮窗、任务栏时钟（覆盖系统任务栏时间区域）。两种位置各自保存字体、字号、颜色与显示格式；任务栏默认两行 `yyyy-mm-dd HH:ff:ss` / `MD ddd rtm`。单进程 WPF 应用（托盘用 WinForms），无服务端、无数据库，设置以 JSON 存于 `%APPDATA%\GameClock\settings.json`。
+Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统托盘，显示时间、天气、定时提醒与日程，支持鼠标穿透与开机自启。显示位置有两种，各自在独立页签里开关（可同时关闭）：桌面悬浮窗、任务栏时钟（覆盖系统任务栏时间区域）。两种位置各自保存显示格式；桌面悬浮窗另存字体、字号与颜色，任务栏时钟跟随系统任务栏外观。任务栏默认两行 `yyyy-mm-dd HH:ff:ss` / `MD ddd rtm`。单进程 WPF 应用（托盘用 WinForms），无服务端、无数据库，设置以 JSON 存于 `%APPDATA%\GameClock\settings.json`。
 
 ## 2. 采用的规范
 
@@ -23,7 +23,7 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 | 路径 | 内容 | 不变量 |
 | --- | --- | --- |
 | `src/app/` | 进程入口、控制器、托盘与共用菜单 | 只做编排，不画窗口、不读写注册表 |
-| `src/clock/` | 悬浮窗、任务栏时钟、分层文字、提醒气泡 | 通过事件与控制器交互；任务栏窗只覆盖，不注入 explorer |
+| `src/clock/` | 悬浮窗、任务栏时钟、今日面板、分层文字、提醒气泡 | 通过事件与控制器交互；任务栏窗只覆盖，不注入 explorer |
 | `src/format/` | 时间格式、简洁变量、时区 | 纯函数，非法输入返回空串 |
 | `src/platform/` | Win32 P/Invoke、开机自启 | 其他模块不得直接 `DllImport` |
 | `src/reminders/` | 提醒/日程模型与触发计算 | 不持有窗口引用 |
@@ -59,12 +59,13 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - `SettingsWindow` 为无边框窗口，靠 `WindowChrome`（`ResizeBorderThickness=6`）提供四边缩放，`ResizeMode=CanResize`、最小 640×560；拖动由标题 `Grid` 的 `MouseLeftButtonDown → DragMove()` 实现，标题区域光标为 `Cursors.SizeAll`，不要只在标题文字上挂拖动，也不要把 `ResizeMode` 改回 `NoResize`。
 - 新增设置项需同时修改 `AppSettings` 字段、`Normalize`/`Clone`、对应页签与持久化兼容路径；旧配置缺字段时按默认值处理。
 - 显示位置由 `ShowDesktopOverlay` / `ShowTaskbarClock` 控制，两个开关分属「桌面悬浮窗」「任务栏时钟」页签、互相独立，可同时关闭（关闭后该位置不显示）；窗口的创建、销毁与天气同步统一走 `AppController.ApplyDisplaySurfaces`，不要在设置窗口里直接开关窗口。
-- 任务栏显示使用独立设置 `TaskbarFontFamilyName` / `TaskbarFontSize` / `TaskbarColorHex` / `TaskbarFormatMode` / `TaskbarFormat` / `TaskbarDotNetFormat`，不要复用悬浮窗的字体与格式字段；默认格式见 `FormatEngine.DefaultTaskbarTokenFormat`。
+- 任务栏时钟外观**跟随系统任务栏**：字体/字号取原生 `TrayClockWClass` 的 `WM_GETFONT`，文字颜色按采样背景亮度选择，背景从任务栏实际像素采样；不要再用 `TaskbarFontFamilyName` / `TaskbarFontSize` / `TaskbarColorHex` 控制外观（这些字段仅为旧配置兼容保留，最多作为字体读取失败时的兜底）。格式仍用 `TaskbarFormatMode` / `TaskbarFormat` / `TaskbarDotNetFormat`，默认格式见 `FormatEngine.DefaultTaskbarTokenFormat`。
 - 格式语言与常用/自定义格式按显示位置各存一份：悬浮窗用 `FormatMode` / `TimeFormat` / `TokenTimeFormat`，任务栏用 `TaskbarFormatMode` / `TaskbarDotNetFormat` / `TaskbarFormat`；全局时间格式页只放时区与变量说明，不写格式。`TaskbarFormat` 始终存简洁变量，`TaskbarDotNetFormat` 始终存 .NET 格式。
 - 悬浮窗交互：拖动由 `_root.MouseLeftButtonDown → DragMove()` 负责（光标 `Cursors.SizeAll`）；滚轮只缩放字号（步长 4，Clamp 16–160），改 `FontSize` 后重绘并通过 `ScaleChanged` 通知控制器防抖保存，不得用滚轮改透明度或位置。
 - 全屏隐藏由 `SHQueryUserNotificationState` 返回的 `QUNS_RUNNING_D3D_FULL_SCREEN`(3) / `QUNS_PRESENTATION_MODE`(4) 驱动，1 秒轮询；只 `Hide()`/`Show()` 窗口，不停止时钟、提醒与日程计时器；关闭设置后必须立即恢复显示。
 - 时区同步统一走 `TimeZoneCatalog.GetSystemId()`（内部读 `TimeZoneInfo.Local`），设置窗口不得直接读 `TimeZoneInfo.Local`；「同步系统时区」只改编辑副本，点「应用」后落盘。
-- 任务栏覆盖窗**不得隐藏** `TrayClockWClass`（会触发任务栏重排、托盘图标移位）；应把系统时钟移出任务栏保留占位，退出时再移回。`TrayClockWClass` 是任务栏子窗口，`SetWindowPos` 坐标相对父窗口，恢复位置前需用父窗口矩形换算。
+- 任务栏覆盖窗**不得移动、不得隐藏** `TrayClockWClass`：只按它的矩形绘制不透明覆盖窗，进程退出或异常崩溃后系统时钟自然恢复。覆盖窗用 `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`、不透明背景；任务栏会在面板展开/重绘时把自己提到 TOPMOST 组前面，需每 250 ms `RaiseTopmost`，否则会露出原生时钟。
+- 任务栏交互：悬停约 0.4 秒或左键单击展开 `TaskbarPanelWindow`，右键弹共用菜单；面板不抢焦点，单击后固定、点击面板外收起；面板数据只读 `AppSettings` 的副本，不直接改设置。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
 
 ## 6. 已知缺口

@@ -106,6 +106,8 @@ namespace GameClock
                 if (_taskbarClock == null)
                 {
                     _taskbarClock = new TaskbarClockWindow(_settings);
+                    _taskbarClock.MenuRequested += OnTaskbarMenuRequested;
+                    _taskbarClock.SettingsRequested += OnTaskbarSettingsRequested;
                 }
                 else
                 {
@@ -178,6 +180,20 @@ namespace GameClock
             {
                 _menu.ShowAtCursor();
             }
+        }
+
+        private void OnTaskbarMenuRequested(object sender, EventArgs e)
+        {
+            if (_menu != null && !_exiting)
+            {
+                SyncMenu();
+                _menu.ShowAtCursor();
+            }
+        }
+
+        private void OnTaskbarSettingsRequested(object sender, EventArgs e)
+        {
+            ShowSettings();
         }
 
         private void OnClockPositionChanged(object sender, EventArgs e)

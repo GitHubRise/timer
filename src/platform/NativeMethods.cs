@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace GameClock
 {
@@ -48,11 +49,52 @@ namespace GameClock
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out POINT point);
 
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int virtualKey);
+
+        public static bool IsLeftMouseButtonDown()
+        {
+            return (GetAsyncKeyState(0x01) & 0x8000) != 0;
+        }
+
         [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "FindWindowW")]
         public static extern IntPtr FindWindow(string className, string windowName);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "FindWindowExW")]
         public static extern IntPtr FindWindowEx(IntPtr parent, IntPtr childAfter, string className, string windowName);
+
+        private delegate bool EnumChildProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumChildWindows(IntPtr parent, EnumChildProc callback, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetClassNameW")]
+        private static extern int GetClassName(IntPtr hWnd, StringBuilder className, int maxCount);
+
+        /// <summary>
+        /// 递归查找指定类名的子窗口；任务栏结构在不同 Windows 版本里层级会变。
+        /// </summary>
+        public static IntPtr FindDescendantByClass(IntPtr parent, string className)
+        {
+            if (parent == IntPtr.Zero || string.IsNullOrEmpty(className))
+            {
+                return IntPtr.Zero;
+            }
+
+            IntPtr result = IntPtr.Zero;
+            EnumChildWindows(parent, delegate (IntPtr hWnd, IntPtr lParam)
+            {
+                StringBuilder builder = new StringBuilder(256);
+                if (GetClassName(hWnd, builder, builder.Capacity) > 0
+                    && string.Equals(builder.ToString(), className, StringComparison.Ordinal))
+                {
+                    result = hWnd;
+                    return false;
+                }
+                return true;
+            }, IntPtr.Zero);
+            return result;
+        }
 
         [DllImport("user32.dll")]
         public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
@@ -155,6 +197,22 @@ namespace GameClock
             SetWindowLongPtr(hWnd, GWL_EXSTYLE, new IntPtr(style));
         }
 
+        /// <summary>
+        /// 任务栏覆盖窗样式：不做透明分层，保证文字使用 ClearType 并可以接收鼠标。
+        /// </summary>
+        public static void ApplyTaskbarOverlayStyles(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            long style = GetWindowLongPtr(hWnd, GWL_EXSTYLE).ToInt64();
+            style |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+            style &= ~(WS_EX_LAYERED | WS_EX_TRANSPARENT);
+            SetWindowLongPtr(hWnd, GWL_EXSTYLE, new IntPtr(style));
+        }
+
         public static void MoveWindowPhysical(IntPtr hWnd, int x, int y, int width, int height)
         {
             if (hWnd == IntPtr.Zero)
@@ -214,11 +272,89 @@ namespace GameClock
             SetTopmost(hWnd, true);
         }
 
+        /// <summary>
+        /// 把窗口提到最顶层窗口组的最前面。任务栏也是 TOPMOST 窗口，
+        /// 普通 SetWindowPos(HWND_TOPMOST) 在已经置顶时不一定重新排序，
+        /// 这里带 SWP_SHOWWINDOW 再提升一次，用于覆盖任务栏的时钟窗。
+        /// </summary>
+        public static void RaiseTopmost(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            SetWindowPos(
+                hWnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+
         public const int QUNS_RUNNING_D3D_FULL_SCREEN = 3;
         public const int QUNS_PRESENTATION_MODE = 4;
 
         [DllImport("shell32.dll")]
         public static extern int SHQueryUserNotificationState(out int state);
+
+        public const int WM_GETFONT = 0x0031;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct LOGFONT
+        {
+            public int lfHeight;
+            public int lfWidth;
+            public int lfEscapement;
+            public int lfOrientation;
+            public int lfWeight;
+            public byte lfItalic;
+            public byte lfUnderline;
+            public byte lfStrikeOut;
+            public byte lfCharSet;
+            public byte lfOutPrecision;
+            public byte lfClipPrecision;
+            public byte lfQuality;
+            public byte lfPitchAndFamily;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string lfFaceName;
+        }
+
+        [DllImport("gdi32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetObjectW")]
+        private static extern int GetObjectW(IntPtr gdiObject, int bufferSize, ref LOGFONT logFont);
+
+        /// <summary>
+        /// 读取窗口当前字体。任务栏时钟字体随系统设置变化，覆盖窗据此跟随。
+        /// </summary>
+        public static bool TryGetWindowFont(IntPtr hWnd, out string faceName, out int pixelHeight)
+        {
+            faceName = null;
+            pixelHeight = 0;
+            if (hWnd == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            IntPtr font = SendMessage(hWnd, WM_GETFONT, IntPtr.Zero, IntPtr.Zero);
+            if (font == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            LOGFONT logFont = new LOGFONT();
+            int size = Marshal.SizeOf(typeof(LOGFONT));
+            if (GetObjectW(font, size, ref logFont) != size)
+            {
+                return false;
+            }
+
+            pixelHeight = Math.Abs(logFont.lfHeight);
+            faceName = logFont.lfFaceName;
+            return pixelHeight > 0 && !string.IsNullOrEmpty(faceName);
+        }
 
         public static void TryUseDarkTitleBar(IntPtr hWnd)
         {

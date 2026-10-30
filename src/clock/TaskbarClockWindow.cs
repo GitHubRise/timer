@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,32 +10,43 @@ using System.Windows.Threading;
 namespace GameClock
 {
     /// <summary>
-    /// Draws the clock over the Windows taskbar clock area.
-    /// The native clock is hidden while this window is active and restored on exit.
+    /// 任务栏时钟：用一个不透明的覆盖窗盖住原生 TrayClockWClass，自己绘制两行时间。
+    /// 不移动、不隐藏系统时钟——覆盖窗消失后系统时钟立即恢复，进程异常退出也不会留下空白。
+    /// 外观跟随系统任务栏：字体取原生时钟字体，背景取原生时钟上下边缘颜色，文字颜色按背景亮度选择。
     /// </summary>
     internal sealed class TaskbarClockWindow : Window
     {
         private const string ShellTrayClassName = "Shell_TrayWnd";
         private const string TrayNotifyClassName = "TrayNotifyWnd";
         private const string TrayClockClassName = "TrayClockWClass";
-        private const int DefaultClockWidth = 74;
-        private const int DefaultClockHeight = 40;
-        private const int SyncIntervalMs = 2000;
+        private const int TickIntervalMs = 250;
+        private const int SyncIntervalMs = 1000;
+        private const int HoverDelayMs = 420;
+        private const int PanelCloseDelayMs = 360;
+        private const int ResampleDelayMs = 500;
 
         private readonly AppSettings _settings;
-        private readonly LayeredText _clockText;
-        private readonly DispatcherTimer _clockTimer;
+        private readonly TextBlock _text;
+        private readonly DispatcherTimer _tickTimer;
         private readonly DispatcherTimer _syncTimer;
+        private readonly DispatcherTimer _hoverTimer;
+        private readonly DispatcherTimer _panelCloseTimer;
+        private readonly DispatcherTimer _resampleTimer;
+        private readonly DispatcherTimer _pinClickTimer;
+
         private WeatherInfo _weather;
         private TimeZoneInfo _timeZone;
-        private IntPtr _nativeClock;
-        private bool _nativeClockMoved;
-        private bool _started;
+        private TaskbarPanelWindow _panel;
+        private IntPtr _clockWindow;
         private NativeMethods.RECT _clockRect;
         private bool _hasClockRect;
-        private IntPtr _rectClock;
-        private NativeMethods.RECT _lastOverlayRect;
-        private bool _hasLastOverlay;
+        private bool _started;
+        private double _dpiScale = 1.0;
+        private FontFamily _fontFamily;
+        private double _baseFontSize = 12.0;
+        private Color _textColor = Color.FromRgb(0x1A, 0x1A, 0x1A);
+        private HwndSource _source;
+        private bool _panelPinned;
 
         public TaskbarClockWindow(AppSettings settings)
         {
@@ -44,36 +56,65 @@ namespace GameClock
 
             Title = "GameClockTaskbarClock";
             WindowStyle = WindowStyle.None;
-            AllowsTransparency = true;
-            Background = Brushes.Transparent;
+            AllowsTransparency = false;
+            Background = new SolidColorBrush(Color.FromRgb(0xF3, 0xF3, 0xF3));
             ShowInTaskbar = false;
             ShowActivated = false;
             Topmost = true;
             ResizeMode = ResizeMode.NoResize;
-            Focusable = false;
+            Focusable = true;
             Width = 1;
             Height = 1;
             Left = -10000;
             Top = -10000;
-            Opacity = 0.0;
 
-            _clockText = new LayeredText();
-            _clockText.IsHitTestVisible = false;
+            _text = new TextBlock();
+            _text.TextAlignment = TextAlignment.Center;
+            _text.TextWrapping = TextWrapping.NoWrap;
+            _text.Foreground = new SolidColorBrush(_textColor);
+            _text.FontWeight = FontWeights.Normal;
+            _text.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+            _text.VerticalAlignment = VerticalAlignment.Center;
+            _text.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _text.SnapsToDevicePixels = true;
+            TextOptions.SetTextFormattingMode(_text, TextFormattingMode.Display);
+            TextOptions.SetTextRenderingMode(_text, TextRenderingMode.ClearType);
+            _text.IsHitTestVisible = false;
+            Content = _text;
 
-            Border root = new Border();
-            root.Background = Brushes.Transparent;
-            root.IsHitTestVisible = false;
-            root.Child = _clockText;
-            Content = root;
+            MouseEnter += OnMouseEnter;
+            MouseLeave += OnMouseLeave;
 
-            _clockTimer = new DispatcherTimer(DispatcherPriority.Normal);
-            _clockTimer.Interval = TimeSpan.FromMilliseconds(200);
-            _clockTimer.Tick += OnClockTick;
+            _tickTimer = new DispatcherTimer(DispatcherPriority.Normal);
+            _tickTimer.Interval = TimeSpan.FromMilliseconds(TickIntervalMs);
+            _tickTimer.Tick += OnTick;
 
             _syncTimer = new DispatcherTimer(DispatcherPriority.Background);
             _syncTimer.Interval = TimeSpan.FromMilliseconds(SyncIntervalMs);
             _syncTimer.Tick += OnSyncTick;
+
+            _hoverTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _hoverTimer.Interval = TimeSpan.FromMilliseconds(HoverDelayMs);
+            _hoverTimer.Tick += OnHoverTick;
+
+            _panelCloseTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _panelCloseTimer.Interval = TimeSpan.FromMilliseconds(PanelCloseDelayMs);
+            _panelCloseTimer.Tick += OnPanelCloseTick;
+
+            _resampleTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _resampleTimer.Interval = TimeSpan.FromMilliseconds(ResampleDelayMs);
+            _resampleTimer.Tick += OnResampleTick;
+
+            _pinClickTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _pinClickTimer.Interval = TimeSpan.FromMilliseconds(60);
+            _pinClickTimer.Tick += OnPinClickTick;
         }
+
+        /// <summary>右键菜单请求；由控制器弹出与托盘共用的菜单。</summary>
+        public event EventHandler MenuRequested;
+
+        /// <summary>面板中点击“打开设置”时触发。</summary>
+        public event EventHandler SettingsRequested;
 
         public void Start()
         {
@@ -83,19 +124,25 @@ namespace GameClock
             }
 
             _started = true;
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            _dpiScale = GetDpiScale();
             Show();
+            SyncGeometry(true);
             UpdateText(true);
-            SyncGeometry();
-            _clockTimer.Start();
+            _tickTimer.Start();
             _syncTimer.Start();
         }
 
         public void Stop()
         {
             _started = false;
-            _clockTimer.Stop();
+            _tickTimer.Stop();
             _syncTimer.Stop();
-            RestoreNativeClock();
+            _hoverTimer.Stop();
+            _panelCloseTimer.Stop();
+            _resampleTimer.Stop();
+            _pinClickTimer.Stop();
+            HidePanel();
             if (IsVisible)
             {
                 Hide();
@@ -111,19 +158,24 @@ namespace GameClock
 
             AppSettings copy = settings.Clone();
             copy.Normalize();
-            _settings.TaskbarColorHex = copy.TaskbarColorHex;
-            _settings.TaskbarFontFamilyName = copy.TaskbarFontFamilyName;
-            _settings.TaskbarFontSize = copy.TaskbarFontSize;
             _settings.TaskbarFormat = copy.TaskbarFormat;
             _settings.TaskbarFormatMode = copy.TaskbarFormatMode;
             _settings.TaskbarDotNetFormat = copy.TaskbarDotNetFormat;
+            _settings.TaskbarFontFamilyName = copy.TaskbarFontFamilyName;
+            _settings.TaskbarFontSize = copy.TaskbarFontSize;
+            _settings.TaskbarColorHex = copy.TaskbarColorHex;
+            _settings.CurrentMode = copy.CurrentMode;
             _settings.TimeZoneId = copy.TimeZoneId;
+            _settings.Reminders = copy.Reminders;
+            _settings.Schedules = copy.Schedules;
+            _settings.WeatherEnabled = copy.WeatherEnabled;
+            _settings.WeatherCity = copy.WeatherCity;
             _timeZone = TimeZoneCatalog.GetZone(_settings.TimeZoneId);
 
             if (_started)
             {
                 UpdateText(true);
-                SyncGeometry();
+                SyncGeometry(false);
             }
         }
 
@@ -131,31 +183,303 @@ namespace GameClock
         {
             _weather = weather;
             UpdateText(true);
+            RefreshPanel();
         }
 
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            NativeMethods.ApplyTaskbarStyles(hwnd);
+            NativeMethods.ApplyTaskbarOverlayStyles(hwnd);
+            NativeMethods.RaiseTopmost(hwnd);
+            _source = HwndSource.FromHwnd(hwnd);
+            if (_source != null)
+            {
+                _source.AddHook(OnWindowMessage);
+            }
         }
 
         protected override void OnClosed(EventArgs e)
         {
-            _clockTimer.Stop();
+            _tickTimer.Stop();
             _syncTimer.Stop();
-            RestoreNativeClock();
+            _hoverTimer.Stop();
+            _panelCloseTimer.Stop();
+            _resampleTimer.Stop();
+            _pinClickTimer.Stop();
+            if (_source != null)
+            {
+                _source.RemoveHook(OnWindowMessage);
+                _source = null;
+            }
+            if (_panel != null)
+            {
+                _panel.Close();
+                _panel = null;
+            }
             base.OnClosed(e);
         }
 
-        private void OnClockTick(object sender, EventArgs e)
+        private void OnTick(object sender, EventArgs e)
         {
             UpdateText(false);
+            // 任务栏会在面板展开、任务栏重绘时把自己提到最顶层窗口组前面，
+            // 覆盖窗必须反复抬到最前，否则会露出系统的原生时钟。
+            NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
         }
 
         private void OnSyncTick(object sender, EventArgs e)
         {
-            SyncGeometry();
+            SyncGeometry(false);
+        }
+
+        private void OnResampleTick(object sender, EventArgs e)
+        {
+            _resampleTimer.Stop();
+            if (_started && _hasClockRect && IsVisible)
+            {
+                SyncGeometry(true);
+            }
+        }
+
+        private IntPtr OnWindowMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            const int WmLButtonUp = 0x0202;
+            const int WmRButtonUp = 0x0205;
+            const int WmSettingChange = 0x001A;
+            const int WmThemeChanged = 0x031A;
+            const int WmDwmColorizationColorChanged = 0x0320;
+
+            if (message == WmLButtonUp)
+            {
+                HandleClockLeftClick();
+                return IntPtr.Zero;
+            }
+            if (message == WmRButtonUp)
+            {
+                HandleClockRightClick();
+                return IntPtr.Zero;
+            }
+
+            bool resample = false;
+            if (message == WmSettingChange)
+            {
+                // 主题切换（浅色/深色）、任务栏尺寸变化都会广播 WM_SETTINGCHANGE。
+                string area = lParam != IntPtr.Zero
+                    ? System.Runtime.InteropServices.Marshal.PtrToStringUni(lParam)
+                    : null;
+                resample = string.IsNullOrEmpty(area)
+                    || string.Equals(area, "ImmersiveColorSet", StringComparison.Ordinal)
+                    || string.Equals(area, "WindowMetrics", StringComparison.Ordinal);
+            }
+            else if (message == WmThemeChanged || message == WmDwmColorizationColorChanged)
+            {
+                resample = true;
+            }
+
+            if (resample && _started)
+            {
+                _resampleTimer.Stop();
+                _resampleTimer.Start();
+            }
+            return IntPtr.Zero;
+        }
+
+        private void HandleClockLeftClick()
+        {
+            if (_panel != null && _panel.IsVisible)
+            {
+                if (_panelPinned)
+                {
+                    HidePanel();
+                    return;
+                }
+                // 悬浮展开的面板，单击后固定住，方便用鼠标去点“打开设置”。
+                _panelPinned = true;
+                _pinClickTimer.Start();
+                return;
+            }
+            ShowPanel(true);
+        }
+
+        private void HandleClockRightClick()
+        {
+            HidePanel();
+            EventHandler handler = MenuRequested;
+            if (handler != null)
+            {
+                handler(this, EventArgs.Empty);
+            }
+        }
+
+        private void OnMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            _panelCloseTimer.Stop();
+            if (_panel == null || !_panel.IsVisible)
+            {
+                _hoverTimer.Stop();
+                _hoverTimer.Start();
+            }
+        }
+
+        private void OnMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            _hoverTimer.Stop();
+            if (_panel != null && _panel.IsVisible)
+            {
+                _panelCloseTimer.Stop();
+                _panelCloseTimer.Start();
+            }
+        }
+
+        private void OnHoverTick(object sender, EventArgs e)
+        {
+            _hoverTimer.Stop();
+            if (!IsCursorOverClock() || (_panel != null && _panel.IsVisible))
+            {
+                return;
+            }
+            ShowPanel(false);
+        }
+
+        private void OnPanelCloseTick(object sender, EventArgs e)
+        {
+            _panelCloseTimer.Stop();
+            if (_panelPinned || IsCursorOverClock() || IsCursorOverPanel())
+            {
+                return;
+            }
+            HidePanel();
+        }
+
+        private void OnPinClickTick(object sender, EventArgs e)
+        {
+            if (!_panelPinned || _panel == null || !_panel.IsVisible)
+            {
+                _pinClickTimer.Stop();
+                return;
+            }
+
+            if (!NativeMethods.IsLeftMouseButtonDown())
+            {
+                return;
+            }
+
+            if (!IsCursorOverClock() && !IsCursorOverPanel())
+            {
+                HidePanel();
+            }
+        }
+
+        private bool IsCursorOverClock()
+        {
+            if (!_hasClockRect)
+            {
+                return false;
+            }
+
+            NativeMethods.POINT point;
+            if (!NativeMethods.GetCursorPos(out point))
+            {
+                return false;
+            }
+            return point.X >= _clockRect.Left
+                && point.X < _clockRect.Right
+                && point.Y >= _clockRect.Top
+                && point.Y < _clockRect.Bottom;
+        }
+
+        private bool IsCursorOverPanel()
+        {
+            if (_panel == null || !_panel.IsVisible)
+            {
+                return false;
+            }
+
+            NativeMethods.POINT point;
+            if (!NativeMethods.GetCursorPos(out point))
+            {
+                return false;
+            }
+
+            NativeMethods.RECT rect;
+            IntPtr hwnd = new WindowInteropHelper(_panel).Handle;
+            if (hwnd == IntPtr.Zero || !NativeMethods.GetWindowRect(hwnd, out rect))
+            {
+                return false;
+            }
+            return point.X >= rect.Left
+                && point.X < rect.Right
+                && point.Y >= rect.Top
+                && point.Y < rect.Bottom;
+        }
+
+        private void ShowPanel(bool pin)
+        {
+            if (!_started || !_hasClockRect || _clockWindow == IntPtr.Zero)
+            {
+                return;
+            }
+
+            EnsurePanel();
+            _panelPinned = pin;
+            _panel.SetModel(BuildPanelModel(TimeZoneCatalog.GetNow(_timeZone)));
+            _panel.ShowNear(_clockRect, _dpiScale);
+            if (pin)
+            {
+                _pinClickTimer.Start();
+            }
+            NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
+        }
+
+        private void HidePanel()
+        {
+            _hoverTimer.Stop();
+            _panelCloseTimer.Stop();
+            _pinClickTimer.Stop();
+            _panelPinned = false;
+            if (_panel != null && _panel.IsVisible)
+            {
+                _panel.Hide();
+            }
+        }
+
+        private void EnsurePanel()
+        {
+            if (_panel != null)
+            {
+                return;
+            }
+
+            _panel = new TaskbarPanelWindow();
+            _panel.SettingsRequested += OnPanelSettingsRequested;
+            _panel.MouseEnter += delegate
+            {
+                _panelCloseTimer.Stop();
+            };
+            _panel.MouseLeave += delegate
+            {
+                _panelCloseTimer.Stop();
+                _panelCloseTimer.Start();
+            };
+            _panel.Closed += delegate { _panel = null; };
+        }
+
+        private void OnPanelSettingsRequested(object sender, EventArgs e)
+        {
+            EventHandler handler = SettingsRequested;
+            if (handler != null)
+            {
+                handler(this, EventArgs.Empty);
+            }
+        }
+
+        private void RefreshPanel()
+        {
+            if (_panel != null && _panel.IsVisible)
+            {
+                _panel.SetModel(BuildPanelModel(TimeZoneCatalog.GetNow(_timeZone)));
+            }
         }
 
         private void UpdateText(bool force)
@@ -165,111 +489,197 @@ namespace GameClock
                 ? FormatEngine.Format(now, _weather, _settings.TaskbarFormat)
                 : TimeFormatter.Format(now, _settings.TaskbarDotNetFormat);
 
-            if (!force && string.Equals(text, _clockText.Text, StringComparison.Ordinal))
+            if (!force && string.Equals(text, _text.Text, StringComparison.Ordinal))
             {
+                if (_panel != null && _panel.IsVisible)
+                {
+                    _panel.SetModel(BuildPanelModel(now));
+                }
                 return;
             }
 
-            _clockText.Text = text;
+            _text.Text = text;
             if (_hasClockRect)
             {
-                ApplyLayout();
+                ApplyVisuals();
+            }
+            if (_panel != null && _panel.IsVisible)
+            {
+                _panel.SetModel(BuildPanelModel(now));
             }
         }
 
-        private void ApplyLayout()
+        private void ApplyVisuals()
         {
-            IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero || !_hasClockRect)
+            if (!_hasClockRect || string.IsNullOrEmpty(_text.Text))
             {
                 return;
             }
 
-            NativeMethods.RECT overlay = BuildOverlayRect(_clockRect);
-            int width = overlay.Right - overlay.Left;
-            int height = overlay.Bottom - overlay.Top;
-            if (!_hasLastOverlay
-                || overlay.Left != _lastOverlayRect.Left
-                || overlay.Top != _lastOverlayRect.Top
-                || overlay.Right != _lastOverlayRect.Right
-                || overlay.Bottom != _lastOverlayRect.Bottom)
+            double widthDip = (_clockRect.Right - _clockRect.Left) / _dpiScale;
+            double heightDip = (_clockRect.Bottom - _clockRect.Top) / _dpiScale;
+            string[] lines = _text.Text.Split('\n');
+            int lineCount = Math.Max(1, Math.Min(2, lines.Length));
+            double lineHeight = heightDip / lineCount;
+            double maxWidth = Math.Max(10.0, widthDip - 4.0);
+
+            FontFamily family = _fontFamily;
+            if (family == null)
             {
-                NativeMethods.MoveWindowPhysical(hwnd, overlay.Left, overlay.Top, width, height);
-                _lastOverlayRect = overlay;
-                _hasLastOverlay = true;
-            }
-            ApplyVisuals(width / GetDpiScale(), height / GetDpiScale());
-        }
-
-        private NativeMethods.RECT BuildOverlayRect(NativeMethods.RECT clockRect)
-        {
-            // The notification button abuts the clock slot on the right, so the overlay
-            // must stay inside the native clock rectangle and shrink the text instead.
-            NativeMethods.RECT result = new NativeMethods.RECT();
-            result.Left = clockRect.Left;
-            result.Top = clockRect.Top;
-            result.Right = clockRect.Right;
-            result.Bottom = clockRect.Bottom;
-            return result;
-        }
-
-        private void ApplyVisuals(double widthDip, double heightDip)
-        {
-            double fontSize = FitFontSize(_clockText.Text, widthDip, heightDip);
-            _clockText.ApplyStyle(
-                GetTaskbarFontFamily(),
-                fontSize,
-                FontWeights.Normal,
-                _settings.TaskbarColor,
-                false,
-                false);
-        }
-
-        private FontFamily GetTaskbarFontFamily()
-        {
-            return new FontFamily(string.IsNullOrWhiteSpace(_settings.TaskbarFontFamilyName)
-                ? "Microsoft YaHei UI"
-                : _settings.TaskbarFontFamilyName);
-        }
-
-        private double FitFontSize(string text, double widthDip, double heightDip)
-        {
-            double size = Math.Min(
-                Math.Max(7.0, Math.Min(40.0, _settings.TaskbarFontSize)),
-                Math.Max(6.0, heightDip / 2.6));
-            if (string.IsNullOrEmpty(text))
-            {
-                return size;
+                family = new FontFamily(string.IsNullOrWhiteSpace(_settings.TaskbarFontFamilyName)
+                    ? "Microsoft YaHei UI"
+                    : _settings.TaskbarFontFamilyName);
             }
 
-            double scale = GetDpiScale();
-            double limitWidth = Math.Max(6.0, widthDip - 4.0);
-            double limitHeight = Math.Max(4.0, heightDip - 2.0);
-            Typeface typeface = new Typeface(GetTaskbarFontFamily(), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-
-            for (int i = 0; i < 40 && size > 5.0; i++)
+            Typeface typeface = new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            double size = _baseFontSize > 0 ? _baseFontSize : 12.0;
+            if (size > lineHeight)
             {
-                FormattedText formatted = new FormattedText(
-                    text,
-                    CultureInfo.CurrentUICulture,
-                    FlowDirection.LeftToRight,
-                    typeface,
-                    size,
-                    Brushes.Black,
-                    scale);
-                if (formatted.WidthIncludingTrailingWhitespace <= limitWidth
-                    && formatted.Height <= limitHeight)
+                size = lineHeight;
+            }
+
+            for (int i = 0; i < 96 && size > 6.0; i++)
+            {
+                double widest = 0.0;
+                for (int line = 0; line < lineCount; line++)
+                {
+                    string value = line < lines.Length ? lines[line] : string.Empty;
+                    if (value.Length == 0)
+                    {
+                        continue;
+                    }
+                    FormattedText formatted = new FormattedText(
+                        value,
+                        CultureInfo.CurrentUICulture,
+                        FlowDirection.LeftToRight,
+                        typeface,
+                        size,
+                        Brushes.Black,
+                        _dpiScale);
+                    if (formatted.WidthIncludingTrailingWhitespace > widest)
+                    {
+                        widest = formatted.WidthIncludingTrailingWhitespace;
+                    }
+                }
+
+                if (widest <= maxWidth && size * 1.32 <= lineHeight)
                 {
                     break;
                 }
-                size -= 0.5;
+                size -= 0.25;
             }
 
-            return size;
+            _text.FontFamily = family;
+            _text.FontSize = size;
+            _text.LineHeight = lineHeight;
+            _text.Foreground = new SolidColorBrush(_textColor);
         }
 
-        private void SyncGeometry()
+        private TaskbarPanelModel BuildPanelModel(DateTime now)
         {
+            TaskbarPanelModel model = new TaskbarPanelModel();
+            model.TimeText = now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+            model.DateText = FormatEngine.Format(now, _weather, "yyyy年mm月dd日 dddd");
+            if (string.IsNullOrEmpty(model.DateText))
+            {
+                model.DateText = now.ToString("yyyy年M月d日", CultureInfo.InvariantCulture);
+            }
+            model.LunarText = FormatEngine.Format(now, _weather, "NN MD");
+            model.WeatherText = _weather != null ? _weather.DisplayText : string.Empty;
+            model.ModeText = "当前状态：" + ReminderModes.DisplayName(_settings.CurrentMode);
+
+            List<TaskbarAgendaLine> agenda = new List<TaskbarAgendaLine>();
+            System.Text.StringBuilder signature = new System.Text.StringBuilder();
+
+            if (_settings.Reminders != null)
+            {
+                for (int i = 0; i < _settings.Reminders.Count; i++)
+                {
+                    Reminder reminder = _settings.Reminders[i];
+                    if (reminder == null || !reminder.Enabled)
+                    {
+                        continue;
+                    }
+                    if (!ReminderModes.AppliesToState(reminder.Mode, _settings.CurrentMode))
+                    {
+                        continue;
+                    }
+                    agenda.Add(new TaskbarAgendaLine(reminder.Time, reminder.Message, IsPast(reminder.Time, now)));
+                    signature.Append("r").Append(reminder.Time).Append(reminder.Message).Append(';');
+                }
+            }
+
+            if (_settings.Schedules != null)
+            {
+                for (int i = 0; i < _settings.Schedules.Count; i++)
+                {
+                    ScheduleItem schedule = _settings.Schedules[i];
+                    if (schedule == null || !schedule.Enabled || !OccursToday(schedule, now))
+                    {
+                        continue;
+                    }
+                    string text = ScheduleCategories.DisplayName(schedule.Type) + " · " + schedule.Title;
+                    agenda.Add(new TaskbarAgendaLine(schedule.Time, text, IsPast(schedule.Time, now)));
+                    signature.Append("s").Append(schedule.Time).Append(text).Append(';');
+                }
+            }
+
+            agenda.Sort(CompareAgenda);
+            if (agenda.Count > 6)
+            {
+                agenda.RemoveRange(6, agenda.Count - 6);
+            }
+
+            model.Agenda = agenda;
+            model.Signature = now.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture)
+                + "|"
+                + _settings.CurrentMode
+                + "|"
+                + signature.ToString();
+            return model;
+        }
+
+        private static int CompareAgenda(TaskbarAgendaLine left, TaskbarAgendaLine right)
+        {
+            return string.CompareOrdinal(left.Time ?? string.Empty, right.Time ?? string.Empty);
+        }
+
+        private static bool IsPast(string time, DateTime now)
+        {
+            DateTime parsed;
+            if (!DateTime.TryParseExact(
+                time,
+                "HH:mm",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out parsed))
+            {
+                return false;
+            }
+            return parsed.Hour < now.Hour || (parsed.Hour == now.Hour && parsed.Minute < now.Minute);
+        }
+
+        private static bool OccursToday(ScheduleItem schedule, DateTime now)
+        {
+            DateTime date;
+            if (!ScheduleService.TryParseDate(schedule.Date, out date))
+            {
+                return false;
+            }
+            if (schedule.Annual)
+            {
+                return date.Month == now.Month && date.Day == now.Day;
+            }
+            return date.Date == now.Date;
+        }
+
+        private void SyncGeometry(bool force)
+        {
+            if (!_started)
+            {
+                return;
+            }
+
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
             if (hwnd == IntPtr.Zero)
             {
@@ -279,8 +689,15 @@ namespace GameClock
             IntPtr shell = NativeMethods.FindWindow(ShellTrayClassName, null);
             if (shell == IntPtr.Zero || !NativeMethods.IsWindowVisible(shell))
             {
-                // Taskbar missing (explorer restarting) or auto-hidden: give the native clock back.
-                RestoreNativeClock();
+                SetVisible(false);
+                return;
+            }
+
+            NativeMethods.RECT shellRect = new NativeMethods.RECT();
+            if (!NativeMethods.GetWindowRect(shell, out shellRect)
+                || shellRect.Bottom - shellRect.Top < 8
+                || shellRect.Right - shellRect.Left < 8)
+            {
                 SetVisible(false);
                 return;
             }
@@ -288,79 +705,214 @@ namespace GameClock
             IntPtr clock = LocateNativeClock(shell);
             if (clock == IntPtr.Zero)
             {
-                RestoreNativeClock();
                 SetVisible(false);
                 return;
             }
 
             NativeMethods.RECT rect = new NativeMethods.RECT();
-            int width = 0;
-            int height = 0;
-            if (NativeMethods.GetWindowRect(clock, out rect))
+            if (!NativeMethods.GetWindowRect(clock, out rect))
             {
-                width = rect.Right - rect.Left;
-                height = rect.Bottom - rect.Top;
+                SetVisible(false);
+                return;
             }
 
-            NativeMethods.RECT shellRect = new NativeMethods.RECT();
-            bool hasShell = NativeMethods.GetWindowRect(shell, out shellRect);
-            bool insideShell = hasShell
-                && rect.Top >= shellRect.Top - 2
-                && rect.Bottom <= shellRect.Bottom + 8;
-
-            if (width >= 40 && height >= 20 && insideShell)
+            int width = rect.Right - rect.Left;
+            int height = rect.Bottom - rect.Top;
+            if (width < 24 || height < 12)
             {
-                _clockRect = rect;
-                _hasClockRect = true;
-                _rectClock = clock;
+                SetVisible(false);
+                return;
             }
-            else if (_hasClockRect && _rectClock == clock)
+
+            bool changed = !_hasClockRect
+                || rect.Left != _clockRect.Left
+                || rect.Top != _clockRect.Top
+                || rect.Right != _clockRect.Right
+                || rect.Bottom != _clockRect.Bottom;
+
+            _clockWindow = clock;
+            _clockRect = rect;
+            _hasClockRect = true;
+
+            if (changed || force)
             {
-                // Hiding the native clock collapses its layout; keep the last good rect.
-                rect = _clockRect;
-                width = rect.Right - rect.Left;
-                height = rect.Bottom - rect.Top;
+                _dpiScale = GetDpiScale();
+                RefreshNativeFont(clock);
+                CaptureBackground();
+                ApplyVisuals();
+                PositionWindow();
+                if (_panel != null && _panel.IsVisible)
+                {
+                    _panel.ShowNear(_clockRect, _dpiScale);
+                }
             }
             else
             {
-                rect = GetFallbackRect(shell);
-                width = rect.Right - rect.Left;
-                height = rect.Bottom - rect.Top;
+                NativeMethods.RaiseTopmost(hwnd);
             }
 
-            MoveNativeClockAway(clock);
-            _clockRect = rect;
-            _hasClockRect = true;
-            _rectClock = clock;
-            ApplyLayout();
             SetVisible(true);
         }
 
-        private static NativeMethods.RECT GetFallbackRect(IntPtr shell)
+        private void RefreshNativeFont(IntPtr clock)
         {
-            NativeMethods.RECT baseRect = new NativeMethods.RECT();
-            IntPtr tray = NativeMethods.FindWindowEx(shell, IntPtr.Zero, TrayNotifyClassName, null);
-            bool found = tray != IntPtr.Zero && NativeMethods.GetWindowRect(tray, out baseRect);
-            if (!found)
+            string faceName;
+            int pixelHeight;
+            if (NativeMethods.TryGetWindowFont(clock, out faceName, out pixelHeight)
+                && !string.IsNullOrEmpty(faceName)
+                && pixelHeight > 0)
             {
-                found = NativeMethods.GetWindowRect(shell, out baseRect);
-            }
-            if (!found)
-            {
-                baseRect.Right = DefaultClockWidth;
-                baseRect.Bottom = DefaultClockHeight;
+                _fontFamily = new FontFamily(faceName);
+                _baseFontSize = pixelHeight / _dpiScale;
+                return;
             }
 
-            NativeMethods.RECT result = new NativeMethods.RECT();
-            result.Right = baseRect.Right;
-            result.Left = baseRect.Right - DefaultClockWidth;
-            result.Top = baseRect.Top;
-            result.Bottom = baseRect.Bottom;
-            if (result.Bottom - result.Top < 16)
+            _fontFamily = new FontFamily(string.IsNullOrWhiteSpace(_settings.TaskbarFontFamilyName)
+                ? "Microsoft YaHei UI"
+                : _settings.TaskbarFontFamilyName);
+            _baseFontSize = _settings.TaskbarFontSize > 0 ? _settings.TaskbarFontSize : 12.0;
+        }
+
+        /// <summary>
+        /// 采样原生时钟上下边缘的背景色：覆盖之前先把自己移出屏幕，采样后再由 PositionWindow 放回。
+        /// 任务栏可能是纯色、强调色着色或半透明亚克力，取实际像素比写死颜色更稳。
+        /// </summary>
+        private void CaptureBackground()
+        {
+            int width = _clockRect.Right - _clockRect.Left;
+            int height = _clockRect.Bottom - _clockRect.Top;
+            if (width < 8 || height < 8)
             {
-                result.Bottom = result.Top + DefaultClockHeight;
+                return;
             }
-            return result;
+
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            bool wasVisible = IsVisible;
+            if (wasVisible)
+            {
+                NativeMethods.SetWindowPos(
+                    hwnd,
+                    NativeMethods.HWND_TOPMOST,
+                    -20000,
+                    -20000,
+                    0,
+                    0,
+                    NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER);
+                System.Threading.Thread.Sleep(35);
+            }
+
+            try
+            {
+                using (System.Drawing.Bitmap bitmap = new System.Drawing.Bitmap(width, height))
+                using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(bitmap))
+                {
+                    graphics.CopyFromScreen(
+                        _clockRect.Left,
+                        _clockRect.Top,
+                        0,
+                        0,
+                        new System.Drawing.Size(width, height),
+                        System.Drawing.CopyPixelOperation.SourceCopy);
+
+                    System.Drawing.Color top = AverageRow(bitmap, 1);
+                    System.Drawing.Color bottom = AverageRow(bitmap, height - 2);
+                    Color topColor = Color.FromRgb(top.R, top.G, top.B);
+                    Color bottomColor = Color.FromRgb(bottom.R, bottom.G, bottom.B);
+
+                    _textColor = Luminance(topColor) + Luminance(bottomColor) >= 300.0
+                        ? Color.FromRgb(0x1A, 0x1A, 0x1A)
+                        : Colors.White;
+
+                    LinearGradientBrush brush = new LinearGradientBrush(topColor, bottomColor, 90.0);
+                    brush.Freeze();
+                    Background = brush;
+                }
+            }
+            catch (Exception)
+            {
+                // 采样失败时保留上一次颜色，不影响时钟显示。
+            }
+        }
+
+        private static System.Drawing.Color AverageRow(System.Drawing.Bitmap bitmap, int y)
+        {
+            if (y < 0)
+            {
+                y = 0;
+            }
+            if (y >= bitmap.Height)
+            {
+                y = bitmap.Height - 1;
+            }
+
+            long r = 0;
+            long g = 0;
+            long b = 0;
+            int count = 0;
+            for (int x = 2; x < bitmap.Width - 2; x++)
+            {
+                System.Drawing.Color color = bitmap.GetPixel(x, y);
+                r += color.R;
+                g += color.G;
+                b += color.B;
+                count++;
+            }
+
+            if (count == 0)
+            {
+                return System.Drawing.Color.Empty;
+            }
+            return System.Drawing.Color.FromArgb((int)(r / count), (int)(g / count), (int)(b / count));
+        }
+
+        private static double Luminance(Color color)
+        {
+            return color.R * 0.299 + color.G * 0.587 + color.B * 0.114;
+        }
+
+        private void PositionWindow()
+        {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero || !_hasClockRect)
+            {
+                return;
+            }
+
+            NativeMethods.MoveWindowPhysical(
+                hwnd,
+                _clockRect.Left,
+                _clockRect.Top,
+                _clockRect.Right - _clockRect.Left,
+                _clockRect.Bottom - _clockRect.Top);
+            NativeMethods.RaiseTopmost(hwnd);
+        }
+
+        private void SetVisible(bool visible)
+        {
+            if (visible)
+            {
+                if (!IsVisible)
+                {
+                    PositionWindow();
+                }
+                return;
+            }
+
+            HidePanel();
+            if (IsVisible)
+            {
+                Hide();
+            }
+        }
+
+        private double GetDpiScale()
+        {
+            PresentationSource source = PresentationSource.FromVisual(this);
+            if (source != null && source.CompositionTarget != null)
+            {
+                return source.CompositionTarget.TransformToDevice.M11;
+            }
+            return 1.0;
         }
 
         private static IntPtr LocateNativeClock(IntPtr shell)
@@ -375,127 +927,11 @@ namespace GameClock
             {
                 clock = NativeMethods.FindWindowEx(shell, IntPtr.Zero, TrayClockClassName, null);
             }
-            return clock;
-        }
-
-        private void MoveNativeClockAway(IntPtr clock)
-        {
             if (clock == IntPtr.Zero)
             {
-                return;
+                clock = NativeMethods.FindDescendantByClass(shell, TrayClockClassName);
             }
-
-            if (_nativeClock != clock)
-            {
-                _nativeClock = clock;
-                _nativeClockMoved = false;
-            }
-
-            if (_nativeClockMoved)
-            {
-                // A taskbar relayout can pull the clock back into its slot; move it out again.
-                NativeMethods.RECT probe;
-                if (NativeMethods.GetWindowRect(clock, out probe) && probe.Left < -1000)
-                {
-                    return;
-                }
-                _nativeClockMoved = false;
-            }
-
-            if (!_nativeClockMoved)
-            {
-                // Hiding the clock removes its taskbar slot and shifts the tray icons.
-                // Moving it off the tray keeps the slot reserved while the overlay covers it.
-                NativeMethods.SetWindowPos(
-                    clock,
-                    IntPtr.Zero,
-                    -10000,
-                    -10000,
-                    0,
-                    0,
-                    NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
-                _nativeClockMoved = true;
-            }
-        }
-
-        private void RestoreNativeClock()
-        {
-            if (!_nativeClockMoved || _nativeClock == IntPtr.Zero)
-            {
-                return;
-            }
-
-            if (_hasClockRect)
-            {
-                // TrayClockWClass is a taskbar child: SetWindowPos expects coordinates
-                // relative to the parent's client area, not screen coordinates.
-                int left = 0;
-                int top = 0;
-                IntPtr parent = NativeMethods.GetParent(_nativeClock);
-                NativeMethods.RECT parentRect = new NativeMethods.RECT();
-                if (parent != IntPtr.Zero && NativeMethods.GetWindowRect(parent, out parentRect))
-                {
-                    left = _clockRect.Left - parentRect.Left;
-                    top = _clockRect.Top - parentRect.Top;
-                }
-
-                NativeMethods.SetWindowPos(
-                    _nativeClock,
-                    IntPtr.Zero,
-                    left,
-                    top,
-                    _clockRect.Right - _clockRect.Left,
-                    _clockRect.Bottom - _clockRect.Top,
-                    NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
-            }
-
-            NativeMethods.ShowWindow(_nativeClock, NativeMethods.SW_SHOWNOACTIVATE);
-            _nativeClockMoved = false;
-
-            // Ask the shell to relayout the tray so the clock returns to its slot.
-            IntPtr shell = NativeMethods.FindWindow(ShellTrayClassName, null);
-            if (shell != IntPtr.Zero)
-            {
-                IntPtr result;
-                NativeMethods.SendMessageTimeout(
-                    shell,
-                    NativeMethods.WM_SETTINGCHANGE,
-                    IntPtr.Zero,
-                    IntPtr.Zero,
-                    0x0002,
-                    2000,
-                    out result);
-            }
-        }
-
-        private void SetVisible(bool visible)
-        {
-            if (visible)
-            {
-                if (!IsVisible)
-                {
-                    Show();
-                }
-                Opacity = 1.0;
-            }
-            else
-            {
-                Opacity = 0.0;
-                if (IsVisible)
-                {
-                    Hide();
-                }
-            }
-        }
-
-        private double GetDpiScale()
-        {
-            PresentationSource source = PresentationSource.FromVisual(this);
-            if (source != null && source.CompositionTarget != null)
-            {
-                return source.CompositionTarget.TransformToDevice.M11;
-            }
-            return 1.0;
+            return clock;
         }
     }
 }
