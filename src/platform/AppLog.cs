@@ -52,6 +52,15 @@ namespace GameClock
             Write("WARN", module, message, null);
         }
 
+        /// <summary>
+        /// 记录可恢复异常并附异常对象：警告本身不影响可用性（有回退路径），
+        /// 但堆栈对排障有价值，因此与 Error 一样同时写入 error.log。
+        /// </summary>
+        public static void Warn(string module, string message, Exception exception)
+        {
+            Write("WARN", module, message, exception);
+        }
+
         /// <summary>记录失败并附异常；堆栈同时进入 error.log，保持与错误对话框提示一致。</summary>
         public static void Error(string module, string message, Exception exception)
         {
