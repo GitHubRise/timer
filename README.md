@@ -203,7 +203,8 @@ yyyy年mm月dd日 NN MD\nday week 今天 HH:ff:ss
 %APPDATA%\GameClock\settings.json
 ```
 
-异常日志：`%APPDATA%\GameClock\error.log`。
+运行日志：`%APPDATA%\GameClock\app.log`（单文件 1 MB，滚动保留 `app.1.log`~`app.3.log`）。
+异常日志：`%APPDATA%\GameClock\error.log`（未处理异常与启动失败的完整堆栈）。
 
 ## 开机自启
 
