@@ -245,7 +245,7 @@ namespace GameClock
                 "显示任务栏时钟",
                 false,
                 "TaskbarClockCheck",
-                "把时间显示在任务栏时钟位置，开启期间系统时钟移出任务栏；关闭后立即恢复系统时钟。");
+                "把时间显示在任务栏时钟位置，接管系统时钟的绘制；关闭后立即恢复系统样式。");
 
             _taskbarFontCombo = new ComboBox();
             UiTheme.ApplyComboBoxStyle(_taskbarFontCombo);

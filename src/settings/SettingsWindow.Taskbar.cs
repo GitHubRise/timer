@@ -19,7 +19,7 @@ namespace GameClock
             switchPanel.Children.Add(UiTheme.MakeSectionTitle("任务栏时钟"));
             switchPanel.Children.Add(_taskbarClockCheck);
             TextBlock switchHint = UiTheme.MakeText(
-                "开启后覆盖系统任务栏的时间区域，并把系统时钟暂移出任务栏；关闭后立即恢复。下方的字体、颜色与格式只作用于任务栏时钟。",
+                "开启后接管系统任务栏的时间区域并重绘两行文本；关闭后立即恢复系统样式。下方的字体、颜色与格式只作用于任务栏时钟。",
                 11,
                 UiTheme.TextMuted,
                 FontWeights.Normal);
