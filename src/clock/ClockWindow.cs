@@ -64,6 +64,10 @@ namespace GameClock
         private string _lastDisplayText;
         private WeatherInfo _weatherInfo;
 
+        // 上次执行「到点检查」的时间键（日期分钟数）；-1 表示需要立即补查一次。
+        // 提醒与日程的粒度都是分钟，同一分钟内重复检查只会反复生成字符串、重复解析日期。
+        private long _lastDueCheckKey = -1;
+
         /// <summary>右键请求打开悬浮菜单；窗口本身不创建菜单。</summary>
         public event EventHandler MenuRequested;
 
@@ -245,6 +249,9 @@ namespace GameClock
             _settings.Normalize();
             _timeZone = TimeZoneCatalog.GetZone(_settings.TimeZoneId);
 
+            // 提醒/日程列表可能整体换过：清掉分钟去重键，让下一次心跳立刻按新列表补查。
+            _lastDueCheckKey = -1;
+
             // 句柄未就绪时只刷视觉；位置恢复与 Win32 样式留给 OnLoaded/首帧回调。
             if (!_loaded)
             {
@@ -363,6 +370,8 @@ namespace GameClock
             if (_loaded)
             {
                 DateTime now = TimeZoneCatalog.GetNow(_timeZone);
+                // 补查过这一分钟就记下键，避免紧接着的心跳在同一分钟内再跑一遍。
+                _lastDueCheckKey = GetDueCheckKey(now);
                 CheckDueReminders(now);
                 CheckDueSchedules(now);
             }
@@ -760,13 +769,30 @@ namespace GameClock
             }
         }
 
-        /// <summary>100 ms 时钟心跳：刷新文本并检查提醒/日程；高频路径，禁止写日志。</summary>
+        /// <summary>100 ms 时钟心跳：刷新文本并按分钟补查到点的提醒/日程；高频路径，禁止写日志。</summary>
         private void OnClockTick(object sender, EventArgs e)
         {
             DateTime now = TimeZoneCatalog.GetNow(_timeZone);
             UpdateClock(now, false);
-            CheckDueReminders(now);
-            CheckDueSchedules(now);
+
+            // 时间文本要 10 次/秒刷新，但「是否到点」的最小粒度是分钟：同一分钟内只查一次，
+            // 避免每拍都生成 "HH:mm"/"yyyy-MM-dd" 并对每条日程重复解析日期时间。
+            long dueCheckKey = GetDueCheckKey(now);
+            if (dueCheckKey != _lastDueCheckKey)
+            {
+                _lastDueCheckKey = dueCheckKey;
+                CheckDueReminders(now);
+                CheckDueSchedules(now);
+            }
+        }
+
+        /// <summary>
+        /// 到点检查的时间键：日期（从 0001-01-01 起的分钟数）+ 当天分钟数。
+        /// 只用整数运算，不产生字符串；跨天时键必然变化，不会把昨天的检查结果当成今天的。
+        /// </summary>
+        private static long GetDueCheckKey(DateTime now)
+        {
+            return (now.Date.Ticks / TimeSpan.TicksPerMinute) + (now.Hour * 60) + now.Minute;
         }
 
         /// <summary>
@@ -941,7 +967,7 @@ namespace GameClock
 
         /// <summary>
         /// 检查到点的定时提醒：同一分钟同一提醒每天只触发一次（LastTriggeredDate 去重）。
-        /// 100 ms 心跳调用，只入队气泡并抛事件，不在这里写日志。
+        /// 由 100 ms 心跳在「分钟变化」时调用（见 OnClockTick）；只入队气泡并抛事件，不在这里写日志。
         /// </summary>
         private void CheckDueReminders(DateTime now)
         {

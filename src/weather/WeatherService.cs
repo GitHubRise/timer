@@ -647,11 +647,24 @@ namespace GameClock
             request.ReadWriteTimeout = 10000;
 
             // 三层 using 保证响应流与读取器释放；HttpWebResponse 不释放会占连接。
-            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-            using (Stream stream = response.GetResponseStream())
-            using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+            try
             {
-                return reader.ReadToEnd();
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                using (Stream stream = response.GetResponseStream())
+                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    return reader.ReadToEnd();
+                }
+            }
+            catch (WebException ex)
+            {
+                // 抛异常时响应对象仍挂在异常上：不关就要等 GC 终结器才还连接，
+                // 连续失败（断网、接口 4xx/5xx）会攒下半开连接，所以显式关掉再原样抛出。
+                if (ex.Response != null)
+                {
+                    ex.Response.Close();
+                }
+                throw;
             }
         }
 
