@@ -138,9 +138,19 @@ namespace GameClock
             Title = "时间悬浮窗设置";
             Width = 680;
             Height = 820;
-            ResizeMode = ResizeMode.NoResize;
+            MinWidth = 640;
+            MinHeight = 560;
+            ResizeMode = ResizeMode.CanResize;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = false;
+            System.Windows.Shell.WindowChrome.SetWindowChrome(this, new System.Windows.Shell.WindowChrome
+            {
+                CaptionHeight = 0,
+                ResizeBorderThickness = new Thickness(6),
+                GlassFrameThickness = new Thickness(0),
+                CornerRadius = new CornerRadius(0),
+                UseAeroCaptionButtons = false
+            });
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             ShowInTaskbar = true;
             Topmost = true;

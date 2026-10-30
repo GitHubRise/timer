@@ -45,9 +45,11 @@ namespace GameClock
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+            header.Background = Brushes.Transparent;
+            header.MouseLeftButtonDown += OnHeaderMouseDown;
+
             StackPanel titleStack = new StackPanel();
             titleStack.Background = Brushes.Transparent;
-            titleStack.MouseLeftButtonDown += OnHeaderMouseDown;
             TextBlock title = UiTheme.MakeText("时间悬浮窗设置", 22, UiTheme.TextPrimary, FontWeights.SemiBold);
             TextBlock subtitle = UiTheme.MakeText(
                 "颜色、字体、格式和提醒；点击“应用”只保存不关闭。",
