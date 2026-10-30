@@ -45,6 +45,7 @@ namespace GameClock
         private FontFamily _fontFamily;
         private double _baseFontSize = 12.0;
         private Color _textColor = Color.FromRgb(0x1A, 0x1A, 0x1A);
+        private bool _hasValidBackground;
         private HwndSource _source;
         private bool _panelPinned;
 
@@ -787,11 +788,17 @@ namespace GameClock
             _clockRect = rect;
             _hasClockRect = true;
 
-            if (changed || force)
+            if (changed || force || !_hasValidBackground)
             {
                 _dpiScale = GetDpiScale();
                 RefreshNativeFont(clock);
                 CaptureBackground();
+                if (!_hasValidBackground)
+                {
+                    // 采样到黑屏/过渡帧时先不显示，避免把任务栏时钟盖成一块黑色。
+                    SetVisible(false);
+                    return;
+                }
                 ApplyVisuals();
                 PositionWindow();
                 if (_panel != null && _panel.IsVisible)
@@ -828,15 +835,16 @@ namespace GameClock
 
         /// <summary>
         /// 采样原生时钟上下边缘的背景色：覆盖之前先把自己移出屏幕，采样后再由 PositionWindow 放回。
-        /// 任务栏可能是纯色、强调色着色或半透明亚克力，取实际像素比写死颜色更稳。
+        /// 任务栏可能是纯色、强调色着色或半透明亚克力，取实际像素比写死颜色更稳；
+        /// 采样到纯黑/剧烈跳变（任务栏动画、全屏窗口、过渡帧）时判定无效，保留上一次有效颜色。
         /// </summary>
-        private void CaptureBackground()
+        private bool CaptureBackground()
         {
             int width = _clockRect.Right - _clockRect.Left;
             int height = _clockRect.Bottom - _clockRect.Top;
             if (width < 8 || height < 8)
             {
-                return;
+                return false;
             }
 
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
@@ -851,7 +859,7 @@ namespace GameClock
                     0,
                     0,
                     NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER);
-                System.Threading.Thread.Sleep(35);
+                System.Threading.Thread.Sleep(80);
             }
 
             try
@@ -867,10 +875,17 @@ namespace GameClock
                         new System.Drawing.Size(width, height),
                         System.Drawing.CopyPixelOperation.SourceCopy);
 
-                    System.Drawing.Color top = AverageRow(bitmap, 1);
-                    System.Drawing.Color bottom = AverageRow(bitmap, height - 2);
+                    int topRow = Math.Max(2, Math.Min(height - 4, height / 10));
+                    int bottomRow = Math.Max(2, Math.Min(height - 4, height - height / 10 - 1));
+                    System.Drawing.Color top = AverageRow(bitmap, topRow);
+                    System.Drawing.Color bottom = AverageRow(bitmap, bottomRow);
                     Color topColor = Color.FromRgb(top.R, top.G, top.B);
                     Color bottomColor = Color.FromRgb(bottom.R, bottom.G, bottom.B);
+
+                    if (!IsPlausibleTaskbarColor(topColor, bottomColor))
+                    {
+                        return false;
+                    }
 
                     _textColor = Luminance(topColor) + Luminance(bottomColor) >= 300.0
                         ? Color.FromRgb(0x1A, 0x1A, 0x1A)
@@ -879,12 +894,44 @@ namespace GameClock
                     LinearGradientBrush brush = new LinearGradientBrush(topColor, bottomColor, 90.0);
                     brush.Freeze();
                     Background = brush;
+                    _hasValidBackground = true;
+                    return true;
                 }
             }
             catch (Exception)
             {
                 // 采样失败时保留上一次颜色，不影响时钟显示。
+                return false;
             }
+        }
+
+        private static bool IsPlausibleTaskbarColor(Color top, Color bottom)
+        {
+            double average = (Luminance(top) + Luminance(bottom)) / 2.0;
+
+            // 纯黑多半是覆盖窗移开后的过渡帧或全屏游戏背景，不能拿来当任务栏底色。
+            if (average < 8.0)
+            {
+                return false;
+            }
+
+            // 采样结果要与系统浅色/深色任务栏一致：浅色主题下黑块、深色主题下白块都判为无效。
+            if (NativeMethods.IsSystemUsesLightTheme())
+            {
+                if (average < 110.0)
+                {
+                    return false;
+                }
+            }
+            else if (average > 150.0)
+            {
+                return false;
+            }
+
+            // 正常任务栏上下边缘颜色接近；跳变超过阈值通常是采到了文字/图标/边框。
+            return Math.Abs(top.R - bottom.R) <= 90
+                && Math.Abs(top.G - bottom.G) <= 90
+                && Math.Abs(top.B - bottom.B) <= 90;
         }
 
         private static System.Drawing.Color AverageRow(System.Drawing.Bitmap bitmap, int y)

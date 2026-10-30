@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32;
 
 namespace GameClock
 {
@@ -64,6 +65,28 @@ namespace GameClock
         public static bool IsLeftMouseButtonDown()
         {
             return (GetAsyncKeyState(0x01) & 0x8000) != 0;
+        }
+
+        /// <summary>
+        /// 当前系统是否使用浅色任务栏；用于校验采样到的任务栏背景是否合理。
+        /// </summary>
+        public static bool IsSystemUsesLightTheme()
+        {
+            try
+            {
+                object value = Registry.GetValue(
+                    @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                    "SystemUsesLightTheme",
+                    null);
+                if (value is int)
+                {
+                    return (int)value != 0;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return true;
         }
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "FindWindowW")]
