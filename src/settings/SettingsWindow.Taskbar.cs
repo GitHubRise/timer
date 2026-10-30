@@ -17,7 +17,7 @@ namespace GameClock
             switchPanel.Children.Add(UiTheme.MakeSectionTitle("任务栏时钟"));
             switchPanel.Children.Add(_taskbarClockCheck);
             TextBlock switchHint = UiTheme.MakeText(
-                "开启后在系统任务栏的时间区域内显示两行时钟。字体、字号与颜色跟随系统任务栏，不移动、不隐藏系统时钟；关闭或退出后系统时钟立即恢复。",
+                "开启后在系统任务栏的时间区域内显示两行时钟。字体与颜色跟随系统任务栏，不移动、不隐藏系统时钟；关闭或退出后系统时钟立即恢复。",
                 11,
                 UiTheme.TextMuted,
                 FontWeights.Normal);
@@ -26,6 +26,23 @@ namespace GameClock
             switchPanel.Children.Add(switchHint);
             switchCard.Child = switchPanel;
             panel.Children.Add(switchCard);
+
+            Border lookCard = UiTheme.MakeCard();
+            StackPanel lookPanel = new StackPanel();
+            lookPanel.Children.Add(UiTheme.MakeSectionTitle("文字大小"));
+            TextBlock lookHint = UiTheme.MakeText(
+                "字号以系统任务栏字体为基准放大，再按任务栏可用宽度自动收紧；加粗会占用更多宽度。",
+                11,
+                UiTheme.TextMuted,
+                FontWeights.Normal);
+            lookHint.TextWrapping = TextWrapping.Wrap;
+            lookHint.Margin = new Thickness(0, 0, 0, 8);
+            lookPanel.Children.Add(lookHint);
+            lookPanel.Children.Add(_taskbarFontScaleCombo);
+            _taskbarBoldCheck.Margin = new Thickness(0, 8, 0, 0);
+            lookPanel.Children.Add(_taskbarBoldCheck);
+            lookCard.Child = lookPanel;
+            panel.Children.Add(lookCard);
 
             Border behaviorCard = UiTheme.MakeCard();
             StackPanel behaviorPanel = new StackPanel();
@@ -300,6 +317,14 @@ namespace GameClock
             _taskbarFormatBox.Text = _taskbarFormatBox.Text.Insert(caret, "\n");
             _taskbarFormatBox.CaretIndex = caret + 1;
             HandleTaskbarFormatTextChanged();
+        }
+
+        private static ComboBoxItem CreateTaskbarScaleItem(int scale, string label)
+        {
+            ComboBoxItem item = new ComboBoxItem();
+            item.Content = label;
+            item.Tag = scale;
+            return item;
         }
     }
 }

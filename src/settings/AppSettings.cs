@@ -22,6 +22,7 @@ namespace GameClock
         private const string DefaultTaskbarFont = "Microsoft YaHei UI";
         private const double DefaultTaskbarFontSize = 10.0;
         private const string DefaultTaskbarColor = "#000000";
+        private const int DefaultTaskbarFontScale = 124;
 
         [DataMember(Name = "color")]
         public string ColorHex { get; set; }
@@ -79,6 +80,12 @@ namespace GameClock
 
         [DataMember(Name = "taskbarFontSize")]
         public double TaskbarFontSize { get; set; }
+
+        [DataMember(Name = "taskbarFontScale")]
+        public int TaskbarFontScale { get; set; }
+
+        [DataMember(Name = "taskbarBold")]
+        public bool TaskbarBold { get; set; }
 
         [DataMember(Name = "taskbarColor")]
         public string TaskbarColorHex { get; set; }
@@ -178,6 +185,8 @@ namespace GameClock
             HideOnFullscreen = true;
             TaskbarFontFamilyName = DefaultTaskbarFont;
             TaskbarFontSize = DefaultTaskbarFontSize;
+            TaskbarFontScale = DefaultTaskbarFontScale;
+            TaskbarBold = false;
             TaskbarColorHex = DefaultTaskbarColor;
             TaskbarFormat = FormatEngine.DefaultTaskbarTokenFormat;
             TaskbarFormatMode = FormatEngine.ModeToken;
@@ -306,6 +315,19 @@ namespace GameClock
                 TaskbarFontSize = DefaultTaskbarFontSize;
             }
             TaskbarFontSize = Clamp(TaskbarFontSize, 7.0, 40.0);
+
+            if (TaskbarFontScale <= 0)
+            {
+                TaskbarFontScale = DefaultTaskbarFontScale;
+            }
+            if (TaskbarFontScale < 100)
+            {
+                TaskbarFontScale = 100;
+            }
+            if (TaskbarFontScale > 160)
+            {
+                TaskbarFontScale = 160;
+            }
 
             Color taskbarColor = ColorUtil.FromHex(TaskbarColorHex);
             TaskbarColorHex = ColorUtil.ToHex(taskbarColor);

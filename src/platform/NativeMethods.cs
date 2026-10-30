@@ -50,6 +50,15 @@ namespace GameClock
         public static extern bool GetCursorPos(out POINT point);
 
         [DllImport("user32.dll")]
+        public static extern IntPtr WindowFromPoint(POINT point);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
+
+        [DllImport("user32.dll")]
+        public static extern int GetSystemMetrics(int index);
+
+        [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int virtualKey);
 
         public static bool IsLeftMouseButtonDown()

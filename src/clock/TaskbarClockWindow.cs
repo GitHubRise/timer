@@ -71,16 +71,24 @@ namespace GameClock
             _text = new TextBlock();
             _text.TextAlignment = TextAlignment.Center;
             _text.TextWrapping = TextWrapping.NoWrap;
+            _text.Padding = new Thickness(2, 0, 2, 0);
             _text.Foreground = new SolidColorBrush(_textColor);
             _text.FontWeight = FontWeights.Normal;
             _text.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
             _text.VerticalAlignment = VerticalAlignment.Center;
-            _text.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _text.HorizontalAlignment = HorizontalAlignment.Center;
             _text.SnapsToDevicePixels = true;
             TextOptions.SetTextFormattingMode(_text, TextFormattingMode.Display);
             TextOptions.SetTextRenderingMode(_text, TextRenderingMode.ClearType);
             _text.IsHitTestVisible = false;
-            Content = _text;
+
+            // Viewbox 只做横向收紧：行高固定，高度方向不缩放，宽度方向按实际宽度压回任务栏时钟矩形。
+            Viewbox viewbox = new Viewbox();
+            viewbox.Stretch = Stretch.Fill;
+            viewbox.HorizontalAlignment = HorizontalAlignment.Stretch;
+            viewbox.VerticalAlignment = VerticalAlignment.Stretch;
+            viewbox.Child = _text;
+            Content = viewbox;
 
             MouseEnter += OnMouseEnter;
             MouseLeave += OnMouseLeave;
@@ -163,6 +171,8 @@ namespace GameClock
             _settings.TaskbarDotNetFormat = copy.TaskbarDotNetFormat;
             _settings.TaskbarFontFamilyName = copy.TaskbarFontFamilyName;
             _settings.TaskbarFontSize = copy.TaskbarFontSize;
+            _settings.TaskbarFontScale = copy.TaskbarFontScale;
+            _settings.TaskbarBold = copy.TaskbarBold;
             _settings.TaskbarColorHex = copy.TaskbarColorHex;
             _settings.CurrentMode = copy.CurrentMode;
             _settings.TimeZoneId = copy.TimeZoneId;
@@ -521,7 +531,7 @@ namespace GameClock
             string[] lines = _text.Text.Split('\n');
             int lineCount = Math.Max(1, Math.Min(2, lines.Length));
             double lineHeight = heightDip / lineCount;
-            double maxWidth = Math.Max(10.0, widthDip - 4.0);
+            double maxWidth = Math.Max(10.0, widthDip - 2.0);
 
             FontFamily family = _fontFamily;
             if (family == null)
@@ -531,48 +541,68 @@ namespace GameClock
                     : _settings.TaskbarFontFamilyName);
             }
 
-            Typeface typeface = new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-            double size = _baseFontSize > 0 ? _baseFontSize : 12.0;
-            if (size > lineHeight)
+            double nativeSize = _baseFontSize > 0 ? _baseFontSize : 12.0;
+            double fontScale = _settings.TaskbarFontScale > 0 ? _settings.TaskbarFontScale / 100.0 : 1.24;
+            if (fontScale < 1.0)
             {
-                size = lineHeight;
+                fontScale = 1.0;
+            }
+            // 不按宽度一路缩小字号：先把字高用满行高（mytime 的字更高），
+            // 再用横向缩放收紧字距，避免字变小、发虚。
+            double size = Math.Min(lineHeight / 1.24, nativeSize * fontScale);
+            if (size < nativeSize)
+            {
+                size = nativeSize;
+            }
+            if (size > lineHeight * 0.92)
+            {
+                size = lineHeight * 0.92;
             }
 
-            for (int i = 0; i < 96 && size > 6.0; i++)
-            {
-                double widest = 0.0;
-                for (int line = 0; line < lineCount; line++)
-                {
-                    string value = line < lines.Length ? lines[line] : string.Empty;
-                    if (value.Length == 0)
-                    {
-                        continue;
-                    }
-                    FormattedText formatted = new FormattedText(
-                        value,
-                        CultureInfo.CurrentUICulture,
-                        FlowDirection.LeftToRight,
-                        typeface,
-                        size,
-                        Brushes.Black,
-                        _dpiScale);
-                    if (formatted.WidthIncludingTrailingWhitespace > widest)
-                    {
-                        widest = formatted.WidthIncludingTrailingWhitespace;
-                    }
-                }
+            FontWeight weight = _settings.TaskbarBold ? FontWeights.Bold : FontWeights.Normal;
+            Typeface typeface = new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal);
+            double widest = MeasureWidestLine(lines, lineCount, typeface, size);
 
-                if (widest <= maxWidth && size * 1.32 <= lineHeight)
-                {
-                    break;
-                }
+            // 横向压缩过多会显得字形发扁；先略降字号，但不低于系统原生字号。
+            for (int i = 0; i < 40 && widest > maxWidth / 0.68 && size > nativeSize + 0.01; i++)
+            {
                 size -= 0.25;
+                widest = MeasureWidestLine(lines, lineCount, typeface, size);
             }
 
+            _text.Width = Math.Max(widest + 12.0, widthDip);
             _text.FontFamily = family;
             _text.FontSize = size;
+            _text.FontWeight = weight;
             _text.LineHeight = lineHeight;
             _text.Foreground = new SolidColorBrush(_textColor);
+            _text.RenderTransform = Transform.Identity;
+        }
+
+        private double MeasureWidestLine(string[] lines, int lineCount, Typeface typeface, double size)
+        {
+            double widest = 0.0;
+            for (int line = 0; line < lineCount; line++)
+            {
+                string value = line < lines.Length ? lines[line] : string.Empty;
+                if (value.Length == 0)
+                {
+                    continue;
+                }
+                FormattedText formatted = new FormattedText(
+                    value,
+                    CultureInfo.CurrentUICulture,
+                    FlowDirection.LeftToRight,
+                    typeface,
+                    size,
+                    Brushes.Black,
+                    _dpiScale);
+                if (formatted.WidthIncludingTrailingWhitespace > widest)
+                {
+                    widest = formatted.WidthIncludingTrailingWhitespace;
+                }
+            }
+            return widest;
         }
 
         private TaskbarPanelModel BuildPanelModel(DateTime now)
@@ -702,6 +732,23 @@ namespace GameClock
                 return;
             }
 
+            // 任务栏被全屏窗口盖住或自动隐藏时，覆盖窗不应该浮在游戏/桌面上。
+            int screenHeight = NativeMethods.GetSystemMetrics(1);
+            if (shellRect.Bottom <= 2 || shellRect.Top >= screenHeight - 2)
+            {
+                SetVisible(false);
+                return;
+            }
+
+            int notificationState;
+            if (NativeMethods.SHQueryUserNotificationState(out notificationState) == 0
+                && (notificationState == NativeMethods.QUNS_RUNNING_D3D_FULL_SCREEN
+                    || notificationState == NativeMethods.QUNS_PRESENTATION_MODE))
+            {
+                SetVisible(false);
+                return;
+            }
+
             IntPtr clock = LocateNativeClock(shell);
             if (clock == IntPtr.Zero)
             {
@@ -719,6 +766,12 @@ namespace GameClock
             int width = rect.Right - rect.Left;
             int height = rect.Bottom - rect.Top;
             if (width < 24 || height < 12)
+            {
+                SetVisible(false);
+                return;
+            }
+
+            if (!IsTaskbarVisibleAt(shell, rect))
             {
                 SetVisible(false);
                 return;
@@ -913,6 +966,22 @@ namespace GameClock
                 return source.CompositionTarget.TransformToDevice.M11;
             }
             return 1.0;
+        }
+
+        private static bool IsTaskbarVisibleAt(IntPtr shell, NativeMethods.RECT clockRect)
+        {
+            NativeMethods.POINT point;
+            point.X = clockRect.Left - 2;
+            point.Y = clockRect.Top + 2;
+            IntPtr hit = NativeMethods.WindowFromPoint(point);
+            if (hit == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            // 命中任务栏的子窗口（托盘/IME/通知区）才算任务栏真的可见；
+            // 全屏游戏的无边框窗口盖住它时，根窗口不是 Shell_TrayWnd。
+            return NativeMethods.GetAncestor(hit, 2) == shell;
         }
 
         private static IntPtr LocateNativeClock(IntPtr shell)

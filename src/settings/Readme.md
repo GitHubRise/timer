@@ -22,7 +22,7 @@
 
 - 设置窗口编辑 `AppSettings` 的克隆副本，用户提交后通过 `ApplyRequested` 事件交给 `../app/AppController.cs` 应用并保存。
 - 「桌面悬浮窗」页签与「任务栏时钟」页签各管自己的开关：分别只写 `ShowDesktopOverlay` / `ShowTaskbarClock`，两者互相独立、可同时关闭；窗口开关由控制器执行。
-- 任务栏页签只编辑格式：开关写 `ShowTaskbarClock`，格式写 `TaskbarFormatMode`/`TaskbarFormat`/`TaskbarDotNetFormat`；任务栏字体与颜色跟随系统，不在界面暴露。`TaskbarFontFamilyName`/`TaskbarFontSize`/`TaskbarColorHex` 作为旧配置兼容保留，仅作字体读取失败时的兜底。
+- 任务栏页签编辑开关、字号与格式：开关写 `ShowTaskbarClock`，字号写 `TaskbarFontScale`（100/112/124/136），加粗写 `TaskbarBold`，格式写 `TaskbarFormatMode`/`TaskbarFormat`/`TaskbarDotNetFormat`；任务栏字体与颜色跟随系统，不在界面暴露。`TaskbarFontFamilyName`/`TaskbarFontSize`/`TaskbarColorHex` 作为旧配置兼容保留，仅作字体读取失败时的兜底。
 - 格式语言与常用/自定义格式按显示位置各存一份：悬浮窗写 `FormatMode`/`TimeFormat`/`TokenTimeFormat`，任务栏写 `TaskbarFormatMode`/`TaskbarDotNetFormat`/`TaskbarFormat`；`TaskbarFormat` 只存简洁变量、`TaskbarDotNetFormat` 只存 .NET 格式，两者与 `TaskbarFormatMode` 同步切换。
 - `SettingsWindow` 以 `partial` 按页签拆分，新增成员放进对应分部文件；主文件只保留字段、构造与公共骨架。
 - 分区文件必须复用主文件的 using 集，避免同类型在不同文件里解析到不同别名。

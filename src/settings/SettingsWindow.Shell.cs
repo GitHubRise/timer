@@ -187,6 +187,18 @@ namespace GameClock
             _desktopOverlayCheck.IsChecked = _working.ShowDesktopOverlay;
             _taskbarClockCheck.IsChecked = _working.ShowTaskbarClock;
 
+            _taskbarBoldCheck.IsChecked = _working.TaskbarBold;
+            _taskbarFontScaleCombo.SelectedIndex = 2;
+            for (int i = 0; i < _taskbarFontScaleCombo.Items.Count; i++)
+            {
+                ComboBoxItem item = _taskbarFontScaleCombo.Items[i] as ComboBoxItem;
+                if (item != null && item.Tag is int && (int)item.Tag == _working.TaskbarFontScale)
+                {
+                    _taskbarFontScaleCombo.SelectedIndex = i;
+                    break;
+                }
+            }
+
             bool taskbarTokenMode = FormatEngine.IsTokenMode(_working.TaskbarFormatMode);
             _taskbarDotNetFormatRadio.IsChecked = !taskbarTokenMode;
             _taskbarTokenFormatRadio.IsChecked = taskbarTokenMode;
@@ -196,8 +208,8 @@ namespace GameClock
             UpdateTaskbarFormatHint();
             UpdateTaskbarFormatComboSelection();
             _taskbarFormatStatus.Text = taskbarTokenMode
-                ? "简洁变量格式，支持两行；任务栏空间不足时会自动缩小字号。"
-                : ".NET 格式，支持两行；任务栏空间不足时会自动缩小字号。";
+                ? "简洁变量格式，支持两行；任务栏空间不足时会自动收紧字距。"
+                : ".NET 格式，支持两行；任务栏空间不足时会自动收紧字距。";
             _taskbarFormatStatus.Foreground = UiTheme.TextMuted;
 
             string mode = ReminderModes.Normalize(_working.CurrentMode);
@@ -482,6 +494,12 @@ namespace GameClock
             _working.HideOnFullscreen = _hideFullscreenCheck.IsChecked == true;
             _working.ShowDesktopOverlay = _desktopOverlayCheck.IsChecked == true;
             _working.ShowTaskbarClock = _taskbarClockCheck.IsChecked == true;
+            ComboBoxItem scaleItem = _taskbarFontScaleCombo.SelectedItem as ComboBoxItem;
+            if (scaleItem != null && scaleItem.Tag is int)
+            {
+                _working.TaskbarFontScale = (int)scaleItem.Tag;
+            }
+            _working.TaskbarBold = _taskbarBoldCheck.IsChecked == true;
             _working.CurrentMode = _workModeRadio.IsChecked == true
                 ? ReminderModes.Work
                 : ReminderModes.Leisure;

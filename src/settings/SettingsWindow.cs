@@ -45,6 +45,8 @@ namespace GameClock
         private readonly CheckBox _hideFullscreenCheck;
         private readonly CheckBox _desktopOverlayCheck;
         private readonly CheckBox _taskbarClockCheck;
+        private readonly ComboBox _taskbarFontScaleCombo;
+        private readonly CheckBox _taskbarBoldCheck;
         private readonly TextBox _taskbarFormatBox;
         private readonly TextBlock _taskbarFormatStatus;
         private readonly ComboBox _taskbarFormatCombo;
@@ -242,6 +244,23 @@ namespace GameClock
                 "TaskbarClockCheck",
                 "在任务栏时间区域显示两行时钟，外观跟随系统；不移动、不隐藏系统时钟。");
 
+            _taskbarFontScaleCombo = new ComboBox();
+            UiTheme.ApplyComboBoxStyle(_taskbarFontScaleCombo);
+            _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(100, "标准（跟随系统）"));
+            _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(112, "较大（+12%）"));
+            _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(124, "大（+24%，默认）"));
+            _taskbarFontScaleCombo.Items.Add(CreateTaskbarScaleItem(136, "更大（+36%）"));
+            _taskbarFontScaleCombo.SelectedIndex = 2;
+            _taskbarFontScaleCombo.MaxDropDownHeight = 260;
+            AutomationProperties.SetAutomationId(_taskbarFontScaleCombo, "TaskbarFontScaleCombo");
+            AutomationProperties.SetName(_taskbarFontScaleCombo, "任务栏时钟字号");
+
+            _taskbarBoldCheck = CreateCheckBox(
+                "加粗显示",
+                false,
+                "TaskbarBoldCheck",
+                "让任务栏时钟文字更粗；字重越大，按宽度收紧得越多。");
+
             _taskbarFormatBox = new TextBox();
             UiTheme.ApplyTextBoxStyle(_taskbarFormatBox);
             _taskbarFormatBox.FontFamily = new FontFamily("Consolas");
@@ -256,7 +275,7 @@ namespace GameClock
             AutomationProperties.SetName(_taskbarFormatBox, "任务栏时钟格式");
 
             _taskbarFormatStatus = UiTheme.MakeText(
-                "简洁变量格式，支持两行；任务栏空间不足时会自动缩小字号。",
+                "简洁变量格式，支持两行；任务栏空间不足时会自动收紧字距。",
                 11,
                 UiTheme.TextMuted,
                 FontWeights.Normal);
