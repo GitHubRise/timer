@@ -701,12 +701,26 @@ namespace GameClock
             // 读写超时单独设置：连接建立后服务端迟迟不返回时也要能放弃。
             request.ReadWriteTimeout = 10000;
 
-            // 三层 using 保证响应、流、读取器按序释放，异常时也不泄漏连接。
-            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-            using (Stream stream = response.GetResponseStream())
-            using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+            // GetResponse() 抛 WebException 时响应对象还没进 using，必须自己关，否则连接要等 GC 才回收。
+            try
             {
-                return reader.ReadToEnd();
+                // 三层 using 保证响应、流、读取器按序释放，正常路径也不会泄漏连接。
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                using (Stream stream = response.GetResponseStream())
+                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    return reader.ReadToEnd();
+                }
+            }
+            catch (WebException ex)
+            {
+                // 错误响应可能带 body，先关再抛，让调用方照原样走失败分支。
+                if (ex.Response != null)
+                {
+                    ex.Response.Close();
+                }
+
+                throw;
             }
         }
 

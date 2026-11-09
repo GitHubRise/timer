@@ -111,6 +111,9 @@ namespace GameClock
         /// <summary>鼠标开始悬停气泡的时刻（UTC）；离开或收起时清空，用于累计 3 秒。</summary>
         private DateTime? _reminderHoverStartedUtc;
 
+        /// <summary>上一次到点检查的分钟键；同一分钟内不再重复检查提醒与日程，避免每 100 ms 生成字符串。</summary>
+        private long _lastDueCheckKey = -1;
+
         /// <summary>上一次写入的时钟文本；内容没变就跳过赋值，减少布局与重绘抖动。</summary>
         private string _lastDisplayText;
 
@@ -307,6 +310,8 @@ namespace GameClock
             _settings = settings;
             _settings.Normalize();
             _timeZone = TimeZoneCatalog.GetZone(_settings.TimeZoneId);
+            // 时区或提醒列表可能整体换了，清掉分钟键让下一次计时器回调立即补查一遍。
+            _lastDueCheckKey = -1;
 
             // 未加载时没有有效句柄，只能更新纯 WPF 视觉；位置与 Win32 样式等 Loaded 后再补。
             if (!_loaded)
@@ -423,6 +428,8 @@ namespace GameClock
             if (_loaded)
             {
                 DateTime now = TimeZoneCatalog.GetNow(_timeZone);
+                // 记下当前分钟键：紧接着的计时器回调不再把同一分钟再查一遍。
+                _lastDueCheckKey = GetDueCheckKey(now);
                 CheckDueReminders(now);
                 CheckDueSchedules(now);
             }
@@ -811,13 +818,31 @@ namespace GameClock
         }
 
         /// <summary>
-        /// 时钟计时器回调（100 ms）：刷新显示，并顺带检查提醒与日程。
+        /// 把时刻折算成「分钟键」：同一天同一分钟得到同一个值，用于到点检查去重。
+        /// 只做整数运算，不生成任何字符串，可安全地每 100 ms 调用一次。
+        /// </summary>
+        private static long GetDueCheckKey(DateTime now)
+        {
+            return (now.Date.Ticks / TimeSpan.TicksPerMinute) + (now.Hour * 60) + now.Minute;
+        }
+
+        /// <summary>
+        /// 时钟计时器回调（100 ms）：刷新显示，并在进入新的一分钟时检查提醒与日程。
         /// 用同一份“当前时区时间”做三件事，避免跨秒时各分支取到不同时刻。
         /// </summary>
         private void OnClockTick(object sender, EventArgs e)
         {
             DateTime now = TimeZoneCatalog.GetNow(_timeZone);
             UpdateClock(now, false);
+
+            // 提醒与日程的最小粒度是分钟：同一分钟内重复检查只会白跑日期解析。
+            long dueKey = GetDueCheckKey(now);
+            if (dueKey == _lastDueCheckKey)
+            {
+                return;
+            }
+
+            _lastDueCheckKey = dueKey;
             CheckDueReminders(now);
             CheckDueSchedules(now);
         }
