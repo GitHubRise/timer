@@ -82,7 +82,8 @@ $references = @(
     (Join-Path $wpfDir 'WindowsBase.dll'),
     (Join-Path $wpfDir 'PresentationCore.dll'),
     (Join-Path $wpfDir 'PresentationFramework.dll'),
-    (Join-Path $wpfDir 'UIAutomationTypes.dll')
+    (Join-Path $wpfDir 'UIAutomationTypes.dll'),
+    (Join-Path $wpfDir 'UIAutomationClient.dll')
 )
 
 $sources = @(Get-ChildItem -LiteralPath $sourceDir -Recurse -Filter '*.cs' | Sort-Object FullName | ForEach-Object { $_.FullName })

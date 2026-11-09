@@ -43,6 +43,9 @@ namespace GameClock
         /// <summary>“重置位置”项；把悬浮窗放回默认角落。</summary>
         private readonly ToolStripMenuItem _resetPositionItem;
 
+        /// <summary>“操作中心”项；任务栏通知按钮被覆盖窗盖住后，用它打开 Windows 通知中心。</summary>
+        private readonly ToolStripMenuItem _actionCenterItem;
+
         /// <summary>“关于”项；打开版本信息窗口。</summary>
         private readonly ToolStripMenuItem _aboutItem;
 
@@ -76,6 +79,9 @@ namespace GameClock
 
         /// <summary>点“重置位置”时触发。</summary>
         public event EventHandler ResetPositionClicked;
+
+        /// <summary>点“操作中心”时触发；由控制器调用 <c>Win+N</c> 打开通知中心。</summary>
+        public event EventHandler ActionCenterClicked;
 
         /// <summary>点“关于”时触发。</summary>
         public event EventHandler AboutClicked;
@@ -123,6 +129,7 @@ namespace GameClock
             _workModeItem = CreateItem("工作", "只触发“全部状态”和“仅工作”的提醒");
             _leisureModeItem = CreateItem("娱乐", "只触发“全部状态”和“仅娱乐”的提醒");
             _resetPositionItem = CreateItem("重置位置", "将时间悬浮窗放回屏幕右上角");
+            _actionCenterItem = CreateItem("操作中心", "打开 Windows 通知中心（Win+N）；任务栏通知按钮被时钟覆盖时可从这里进");
             _aboutItem = CreateItem("关于", "查看版本号和编译号");
             _exitItem = CreateItem("退出", "关闭时间悬浮窗");
 
@@ -143,6 +150,7 @@ namespace GameClock
             _workModeItem.Click += delegate { Raise(WorkModeClicked); };
             _leisureModeItem.Click += delegate { Raise(LeisureModeClicked); };
             _resetPositionItem.Click += delegate { Raise(ResetPositionClicked); };
+            _actionCenterItem.Click += delegate { Raise(ActionCenterClicked); };
             _aboutItem.Click += delegate { Raise(AboutClicked); };
             _exitItem.Click += delegate { Raise(ExitClicked); };
 
@@ -154,6 +162,7 @@ namespace GameClock
             Menu.Items.Add(_modeItem);
             Menu.Items.Add(new ToolStripSeparator());
             Menu.Items.Add(_resetPositionItem);
+            Menu.Items.Add(_actionCenterItem);
             Menu.Items.Add(_aboutItem);
             Menu.Items.Add(_exitItem);
 

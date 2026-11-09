@@ -119,6 +119,7 @@ namespace GameClock
             _menu.WorkModeClicked += OnMenuWorkMode;
             _menu.LeisureModeClicked += OnMenuLeisureMode;
             _menu.ResetPositionClicked += OnMenuResetPosition;
+            _menu.ActionCenterClicked += OnMenuActionCenter;
             _menu.AboutClicked += OnMenuAbout;
             _menu.ExitClicked += OnMenuExit;
             _menu.MenuOpening += OnMenuOpening;
@@ -555,6 +556,21 @@ namespace GameClock
             }
             _clock.ResetPosition();
             ScheduleSave();
+        }
+
+        /// <summary>
+        /// 菜单“操作中心”：模拟 Win+N 打开 Windows 通知中心。
+        /// 任务栏时钟的覆盖窗把通知按钮一起盖住了，这里给一条替代入口；
+        /// 通知中心由系统自己弹出，本项目只负责转发这一次按键。
+        /// </summary>
+        private void OnMenuActionCenter(object sender, EventArgs e)
+        {
+            // 退出流程中不再制造新的系统交互。
+            if (_exiting)
+            {
+                return;
+            }
+            NativeMethods.OpenActionCenter();
         }
 
         /// <summary>

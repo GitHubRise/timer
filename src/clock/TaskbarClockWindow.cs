@@ -35,6 +35,12 @@ namespace GameClock
         /// <summary>系统时钟窗口类名；覆盖目标，只读不改。</summary>
         private const string TrayClockClassName = "TrayClockWClass";
 
+        /// <summary>任务栏「操作中心」按钮类名；覆盖区向右扩到它，换取排版宽度。</summary>
+        private const string ActionCenterClassName = "TrayButton";
+
+        /// <summary>与「操作中心」按钮允许的水平间隙（物理像素）；正常是 0，留 2 px 容差。</summary>
+        private const int ActionCenterMaxGap = 2;
+
         // ===== 节奏常量（毫秒） =====
 
         /// <summary>重绘并抬到最前的周期：任务栏随时会把自己提到 TOPMOST 前面。</summary>
@@ -163,7 +169,7 @@ namespace GameClock
 
             // 文本块只建一次，之后 UpdateText/ApplyVisuals 只改属性，不重建可视树。
             _text = new TextBlock();
-            // 居中 + 不换行：两行内容由格式里的换行决定，宽度不够时靠外层 Viewbox 横向收紧。
+            // 居中 + 不换行：两行内容由格式里的换行决定；宽度不够时先降字号，残留溢出交给 Viewbox 等比缩小。
             _text.TextAlignment = TextAlignment.Center;
             _text.TextWrapping = TextWrapping.NoWrap;
             _text.Padding = new Thickness(2, 0, 2, 0);
@@ -180,9 +186,10 @@ namespace GameClock
             // 覆盖窗本身要接收点击，但文字不参与命中测试，鼠标事件统一由窗口处理。
             _text.IsHitTestVisible = false;
 
-            // Viewbox 只做横向收紧：行高固定，高度方向不缩放，宽度方向按实际宽度压回任务栏时钟矩形。
+            // Viewbox 只等比缩小、不放大：Fill 会把字形横向压扁，看起来「被挤瘦」，且 ClearType 会因非等比缩放发虚。
             Viewbox viewbox = new Viewbox();
-            viewbox.Stretch = Stretch.Fill;
+            viewbox.Stretch = Stretch.Uniform;
+            viewbox.StretchDirection = StretchDirection.DownOnly;
             viewbox.HorizontalAlignment = HorizontalAlignment.Stretch;
             viewbox.VerticalAlignment = VerticalAlignment.Stretch;
             viewbox.Child = _text;
@@ -396,12 +403,19 @@ namespace GameClock
             // force=false：文本没变就跳过重排，省下布局开销。
             UpdateText(false);
             // 任务栏会在面板展开、任务栏重绘时把自己提到最顶层窗口组前面，
-            // 覆盖窗必须反复抬到最前，否则会露出系统的原生时钟。
+            // 覆盖窗必须重新抬到最前，否则会露出系统的原生时钟。
+            // 但只在真的被压下去时才抬：无条件每 250 ms 抬顶会把任务栏的提示框、
+            // 右键菜单这些后出现的顶层窗口盖到底下（用户反馈的“置顶优先级太高”）。
             // 全屏隐藏期间不提升，避免把已隐藏的窗口重新显示出来。
             if (IsVisible)
             {
                 // 每次重新取句柄而不是缓存值，避免窗口重建后拿到旧句柄。
-                NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                IntPtr shell = NativeMethods.FindWindow(ShellTrayClassName, null);
+                if (!NativeMethods.IsAbove(hwnd, shell))
+                {
+                    NativeMethods.RaiseTopmost(hwnd);
+                }
             }
         }
 
@@ -809,8 +823,8 @@ namespace GameClock
             int lineCount = Math.Max(1, Math.Min(2, lines.Length));
             // 行高等分时钟高度：两行整体刚好填满原生时钟区域。
             double lineHeight = heightDip / lineCount;
-            // 左右各留 2 DIP 余量，避免文字贴边被裁。
-            double maxWidth = Math.Max(10.0, widthDip - 2.0);
+            // 左右各留 8 DIP：文本块内衬 2×2，再加一点余量，避免 ClearType 末笔贴边被裁。
+            double maxWidth = Math.Max(10.0, widthDip - 8.0);
 
             // 字体优先用原生时钟的 WM_GETFONT 结果；取不到才退到设置里的旧字段。
             FontFamily family = _fontFamily;
@@ -829,8 +843,7 @@ namespace GameClock
             {
                 fontScale = 1.0;
             }
-            // 不按宽度一路缩小字号：先把字高用满行高（mytime 的字更高），
-            // 再用横向缩放收紧字距，避免字变小、发虚。
+            // 先把字高用满行高：行高决定字号上限，超过就会被行距挤出去。
             double size = Math.Min(lineHeight / 1.24, nativeSize * fontScale);
             if (size < nativeSize)
             {
@@ -847,15 +860,17 @@ namespace GameClock
             // 先量最宽行：横向压缩能力有限，需要据此决定是否降字号。
             double widest = MeasureWidestLine(lines, lineCount, typeface, size);
 
-            // 横向压缩过多会显得字形发扁；先略降字号，但不低于系统原生字号。
-            for (int i = 0; i < 40 && widest > maxWidth / 0.68 && size > nativeSize + 0.01; i++)
+            // 再按宽度等比降字号：横向压扁字形会让字「变瘦」，宁可整行小一点也要保持字形比例。
+            // 只降到原生字号的 85%，更长的格式不再压字号，交给 Viewbox 做等比缩放。
+            double minSize = Math.Max(6.0, nativeSize * 0.85);
+            for (int i = 0; i < 40 && widest > maxWidth && size > minSize; i++)
             {
                 size -= 0.25;
                 widest = MeasureWidestLine(lines, lineCount, typeface, size);
             }
 
-            // 宽度取“最宽行 + 余量”与时钟宽度的较大者，Viewbox 再按实际宽度横向压回。
-            _text.Width = Math.Max(widest + 12.0, widthDip);
+            // 宽度取“最宽行 + 内衬”，不硬撑到窗口宽度：只有真的放不下时才由 Viewbox 等比缩小。
+            _text.Width = Math.Max(widest + 6.0, widthDip - 4.0);
             _text.FontFamily = family;
             _text.FontSize = size;
             _text.FontWeight = weight;
@@ -1120,6 +1135,9 @@ namespace GameClock
                 return;
             }
 
+            // 原生时钟只有 93 px，长格式放不下；向右扩到「操作中心」按钮换取宽度，字形就不用被压扁。
+            rect = ExtendOverActionCenter(shell, rect);
+
             // 只在矩形变化（或强制、或还没采到有效背景）时才做昂贵操作：取字体、采样像素、重排版。
             bool changed = !_hasClockRect
                 || rect.Left != _clockRect.Left
@@ -1153,14 +1171,47 @@ namespace GameClock
                     _panel.ShowNear(_clockRect, _dpiScale);
                 }
             }
-            // 矩形没变：只需抬到最前，不做采样与重排。
+            // 矩形没变：只需确认还在任务栏之上，不做采样与重排。
             else
             {
-                NativeMethods.RaiseTopmost(hwnd);
+                // 同样只在被压下去时才抬顶，否则会盖住随后弹出的提示框与右键菜单。
+                if (!NativeMethods.IsAbove(hwnd, shell))
+                {
+                    NativeMethods.RaiseTopmost(hwnd);
+                }
             }
 
             // 所有检查通过，确保窗口可见（从全屏隐藏/任务栏重建中恢复）。
             SetVisible(true);
+        }
+
+        /// <summary>
+        /// 把覆盖矩形向右扩到任务栏的「操作中心」按钮。
+        /// 原生时钟固定 93 px，长格式（如「2026-11-09 11:18:13」）需要 135.5 px，
+        /// 不扩宽就只能缩字号或压扁字形，两种都不好看；按钮与时钟紧邻（间隙 0），
+        /// 扩过去正好取得富余宽度。代价是通知按钮与其未读徽标被盖住，
+        /// 由右键菜单的「操作中心」入口补偿（见 <see cref="NativeMethods.OpenActionCenter"/>）。
+        /// 找不到按钮（旧系统、系统隐藏）时原样返回，退回等比缩放。
+        /// </summary>
+        private NativeMethods.RECT ExtendOverActionCenter(IntPtr shell, NativeMethods.RECT rect)
+        {
+            IntPtr actionCenter = NativeMethods.FindChildToRight(shell, ActionCenterClassName, rect, ActionCenterMaxGap);
+            // 没有可扩的按钮就不动矩形：扩宽会盖住别的东西，宁可按原宽度排版。
+            if (actionCenter == IntPtr.Zero)
+            {
+                return rect;
+            }
+
+            NativeMethods.RECT buttonRect;
+            if (!NativeMethods.GetWindowRect(actionCenter, out buttonRect))
+            {
+                return rect;
+            }
+
+            // 只改右边界：左边界必须与原生时钟对齐，否则会露出系统自己的时间。
+            NativeMethods.RECT extended = rect;
+            extended.Right = buttonRect.Right;
+            return extended;
         }
 
         /// <summary>

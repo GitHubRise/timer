@@ -1,13 +1,14 @@
 // Win32 互操作集中地：本项目所有 DllImport 声明与 Win32 结构体只允许出现在本文件，
 // 其它模块（clock/、app/、settings/）一律调用这里封装好的方法，不自己碰句柄与 P/Invoke。
 // 职责：窗口扩展样式（透明穿透、工具窗、置顶）、任务栏时钟窗口查找与覆盖定位、
-//       全屏判定、DWM 窗口属性、窗口字体读取、鼠标按键与系统主题查询。
+//       全屏判定、DWM 窗口属性、窗口字体读取、鼠标按键与系统主题查询、打开通知中心。
 // 约束：句柄由调用方创建与释放，本类只借用句柄读写属性，不持有、不销毁任何窗口句柄。
 // 失败约定：Win32 调用失败时返回 false / 0 / 零句柄，本类不抛异常，调用方需自行判空。
 
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows.Automation;
 using Microsoft.Win32;
 
 namespace GameClock
@@ -269,6 +270,62 @@ namespace GameClock
 
         // ===== 窗口几何与消息 =====
 
+        /// <summary>
+        /// 在 <paramref name="parent"/> 的后代里找“紧贴 <paramref name="anchor"/> 右侧、同一行”的指定类名窗口。
+        /// 任务栏的「操作中心」按钮就在时钟右边一个像素都不隔，用它把覆盖区向右扩出可用宽度。
+        /// 找不到（旧版 Windows 没有该按钮、被系统隐藏）时返回 <see cref="IntPtr.Zero"/>。
+        /// </summary>
+        /// <param name="parent">枚举起点，通常是任务栏根窗口。</param>
+        /// <param name="className">目标类名，如 <c>TrayButton</c>。</param>
+        /// <param name="anchor">定位基准矩形；要求目标窗口与其上下边界基本对齐。</param>
+        /// <param name="maxGap">允许的水平间隙（物理像素）；超过视为不是紧邻按钮。</param>
+        public static IntPtr FindChildToRight(IntPtr parent, string className, RECT anchor, int maxGap)
+        {
+            // 参数不全时直接返回，避免无意义的枚举。
+            if (parent == IntPtr.Zero || string.IsNullOrEmpty(className))
+            {
+                return IntPtr.Zero;
+            }
+
+            IntPtr best = IntPtr.Zero;
+            int bestLeft = int.MaxValue;
+            EnumChildWindows(parent, delegate (IntPtr hWnd, IntPtr lParam)
+            {
+                StringBuilder builder = new StringBuilder(256);
+                if (GetClassName(hWnd, builder, builder.Capacity) <= 0
+                    || !string.Equals(builder.ToString(), className, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                RECT candidate;
+                if (!GetWindowRect(hWnd, out candidate) || !IsWindowVisible(hWnd))
+                {
+                    return true;
+                }
+
+                // 只要紧邻右侧那一个：左边缘落在一小段间隙内，且上下边界与时钟同高。
+                int gap = candidate.Left - anchor.Right;
+                if (gap < -2 || gap > maxGap)
+                {
+                    return true;
+                }
+                if (Math.Abs(candidate.Top - anchor.Top) > 4 || Math.Abs(candidate.Bottom - anchor.Bottom) > 4)
+                {
+                    return true;
+                }
+
+                // 取最靠左的那个（正常只有一个），避免误命中右侧更远的同名按钮。
+                if (candidate.Left < bestLeft)
+                {
+                    bestLeft = candidate.Left;
+                    best = hWnd;
+                }
+                return true;
+            }, IntPtr.Zero);
+            return best;
+        }
+
         /// <summary>取窗口矩形（屏幕坐标，含不可见边框）；返回 false 表示句柄无效。</summary>
         [DllImport("user32.dll")]
         public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
@@ -504,9 +561,11 @@ namespace GameClock
         }
 
         /// <summary>
-        /// 把窗口提到最顶层窗口组的最前面。任务栏也是 TOPMOST 窗口，
-        /// 普通 SetWindowPos(HWND_TOPMOST) 在已经置顶时不一定重新排序，这里再提升一次。
-        /// 注意不能带 SWP_SHOWWINDOW：任务栏时钟每 250 ms 调一次，
+        /// 把窗口提到「任务栏正上方」这一层：插到 <c>Shell_TrayWnd</c> 的上一个 Z 序位置。
+        /// 不能直接 SetWindowPos(HWND_TOPMOST)：那会顶到 TOPMOST 组最前面，
+        /// 把随后弹出的任务栏提示框、右键菜单压到下面（用户反馈的“置顶优先级太高”）。
+        /// 插到任务栏上方后，其它后出现的顶层窗口天然保持在这之上。
+        /// 任务栏找不到时退回纯置顶。注意不能带 SWP_SHOWWINDOW：任务栏时钟每 250 ms 调一次，
         /// 带上它会把已 Hide() 的窗口重新显示出来，导致全屏隐藏失效。
         /// 窗口不可见时直接返回，避免和 1 秒一次的全屏隐藏互相打架。
         /// </summary>
@@ -518,14 +577,130 @@ namespace GameClock
                 return;
             }
 
+            // 找任务栏及其上方那一层：把窗口插在“任务栏之上、其它顶层窗口之下”。
+            IntPtr shell = FindWindow("Shell_TrayWnd", null);
+            IntPtr insertAfter = shell != IntPtr.Zero ? GetWindow(shell, GW_HWNDPREV) : IntPtr.Zero;
+            // 已经就在任务栏正上方时无需再动，省掉一次无效的 Z 序调整。
+            if (insertAfter == hWnd)
+            {
+                return;
+            }
+
             SetWindowPos(
                 hWnd,
-                HWND_TOPMOST,
+                insertAfter != IntPtr.Zero ? insertAfter : HWND_TOPMOST,
                 0,
                 0,
                 0,
                 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+        }
+
+        /// <summary>Z 序下行：<c>GW_HWNDNEXT</c>，取当前窗口下方（更低一层）的那个窗口。</summary>
+        public const uint GW_HWNDNEXT = 0x0002;
+
+        /// <summary>Z 序上行：<c>GW_HWNDPREV</c>，取当前窗口上方（更高一层）的那个窗口。</summary>
+        public const uint GW_HWNDPREV = 0x0003;
+
+        /// <summary>按 Z 序取相邻窗口；<paramref name="uCmd"/> 用 <see cref="GW_HWNDNEXT"/>。</summary>
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+        /// <summary>
+        /// 判断 <paramref name="candidate"/> 是否排在 <paramref name="reference"/> 之上（Z 序更靠前、更“顶层”）。
+        /// 从 candidate 沿 <see cref="GW_HWNDNEXT"/> 往下走，先遇到 reference 就说明 candidate 压在它上面。
+        /// 任务栏时钟用它区分「确实被任务栏抢回去了，需要重新抬顶」和「已经在任务栏之上，别再动 Z 序」——
+        /// 后者若也无条件 <see cref="RaiseTopmost"/>，就会把任务栏的提示框、右键菜单重新压到下面。
+        /// 只走 64 跳：正常链长远小于这个值，超限按“不在其上”处理，宁可多抬一次也不死循环。
+        /// </summary>
+        public static bool IsAbove(IntPtr candidate, IntPtr reference)
+        {
+            // 任一句柄无效都无从比较。
+            if (candidate == IntPtr.Zero || reference == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            IntPtr current = candidate;
+            for (int i = 0; i < 64; i++)
+            {
+                current = GetWindow(current, GW_HWNDNEXT);
+                if (current == IntPtr.Zero)
+                {
+                    return false;
+                }
+                if (current == reference)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // ===== 系统操作 =====
+
+        /// <summary>左 Win 键（<c>VK_LWIN</c>）。</summary>
+        private const byte VK_LWIN = 0x5B;
+
+        /// <summary>字母 N（<c>VK_N</c>），与 Win 组合即通知中心快捷键。</summary>
+        private const byte VK_N = 0x4E;
+
+        /// <summary>键抬起标志（<c>KEYEVENTF_KEYUP</c>）。</summary>
+        private const uint KEYEVENTF_KEYUP = 0x0002;
+
+        /// <summary>合成一次键按下/抬起。仅用于模拟系统快捷键，不用于输入文本。</summary>
+        [DllImport("user32.dll")]
+        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        /// <summary>
+        /// 打开 Windows 通知中心。
+        /// 首选：对任务栏「操作中心」按钮走 UI 自动化的 <c>InvokePattern</c>——覆盖窗虽然盖住了它，
+        /// 但按钮本身仍在、仍可被程序调用，而且与真实点击走同一条系统路径（不受快捷键策略影响）。
+        /// 兜底：UI 自动化不可用（explorer 重启中、UIA 服务异常）时模拟 <c>Win+N</c>。
+        /// 顺序必须是「按下 Win → 按下 N → 抬起 N → 抬起 Win」，提前抬起 Win 会变成单独按 N。
+        /// </summary>
+        public static void OpenActionCenter()
+        {
+            // 首选路径：找到类名 TrayButton、名字以「操作中心」开头的元素并 Invoke。
+            try
+            {
+                AutomationElement root = AutomationElement.RootElement;
+                Condition byClass = new PropertyCondition(AutomationElement.ClassNameProperty, "TrayButton");
+                AutomationElementCollection buttons = root.FindAll(TreeScope.Descendants, byClass);
+                foreach (AutomationElement button in buttons)
+                {
+                    string name = button.Current.Name;
+                    if (string.IsNullOrEmpty(name) || !name.StartsWith("操作中心", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    object pattern;
+                    if (button.TryGetCurrentPattern(InvokePattern.Pattern, out pattern))
+                    {
+                        ((InvokePattern)pattern).Invoke();
+                        return;
+                    }
+                }
+            }
+            catch (ElementNotAvailableException)
+            {
+                // 任务栏正在重建：元素句柄失效，落到下面的快捷键兜底。
+            }
+            catch (InvalidOperationException)
+            {
+                // UIA 客户端被系统拒绝（例如界面线程已退出）：同样走兜底。
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // explorer 无响应时 UIA 调用会抛 COM 异常，兜底即可，不要影响菜单响应。
+            }
+
+            // 兜底：模拟 Win+N。
+            keybd_event(VK_LWIN, 0, 0, UIntPtr.Zero);
+            keybd_event(VK_N, 0, 0, UIntPtr.Zero);
+            keybd_event(VK_N, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
 
         // ===== 全屏判定 =====
