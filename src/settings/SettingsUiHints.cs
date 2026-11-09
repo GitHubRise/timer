@@ -1,4 +1,4 @@
-﻿// 设置界面的灰色提示文字总开关。
+// 设置界面的灰色提示文字总开关。
 // 设置窗口各页签里的灰色说明文字都从 SettingsUiHints.Hint 创建，改 ShowHints 一处
 // 即可整体关闭，无需逐页删代码；关闭时文字块直接折叠，不占布局空间。
 // 约束：开关只在创建控件时读取，运行期改值不会重排已建好的界面；重新打开窗口才生效。
@@ -11,9 +11,11 @@ using System.Windows.Media;
 
 namespace GameClock
 {
+
     /// <summary>设置界面提示文字的集中开关与工厂。</summary>
     internal static class SettingsUiHints
     {
+
         /// <summary>灰色提示总开关；false = 全部关闭（默认）。</summary>
         public static bool ShowHints = false;
 
