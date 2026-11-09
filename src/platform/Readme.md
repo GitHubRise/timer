@@ -4,7 +4,7 @@
 
 ## 放什么
 
-- `NativeMethods.cs`：窗口样式、置顶/抬升、鼠标穿透、分层窗口、任务栏窗口查找与几何定位、原生时钟字体读取（`WM_GETFONT`/`LOG_FONT`）、鼠标按键状态等 Win32 声明与包装。
+- `NativeMethods.cs`：窗口样式、置顶/抬升（`RaiseTopmost` 插到任务栏正上方，`IsAbove` 判断 Z 序）、鼠标穿透、分层窗口、任务栏窗口查找与几何定位（含 `FindChildToRight` 找「操作中心」按钮）、原生时钟字体读取（`WM_GETFONT`/`LOG_FONT`）、鼠标按键状态、打开通知中心（UIA `InvokePattern`，`Win+N` 兜底）等 Win32 / UI 自动化声明与包装。
 - `AutoStartManager.cs`：开机自启注册表项（`HKCU` Run）的写入、删除与查询。
 
 ## 不放什么

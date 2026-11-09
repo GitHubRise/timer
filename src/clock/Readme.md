@@ -21,6 +21,7 @@
 - 用户操作通过 `MenuRequested`、`PositionChanged`、`ScaleChanged`、`ReminderTriggered`、`ScheduleTriggered` 事件交给 `../app/AppController.cs`；任务栏面板的“打开设置”走 `SettingsRequested`。
 - 滚轮缩放只改 `FontSize`（步长 4，16–160），不改变位置与透明度；全屏隐藏依据 `SHQueryUserNotificationState` 的 3/4 状态，仅隐藏/恢复窗口，计时器保持运行。
 - 任务栏时钟只做覆盖：**不移动、不隐藏系统时钟**，因此覆盖窗消失（关闭、退出、崩溃）后系统时钟自然恢复。外观跟随系统：字体取 `WM_GETFONT`，背景采样原生时钟上下边缘像素，文字颜色按背景亮度选择。
-- 任务栏覆盖窗必须能收到鼠标：使用不透明的普通置顶窗口（`WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`，不启用 `WS_EX_TRANSPARENT`），并每 250 ms `RaiseTopmost`，否则任务栏会把它压到下面。`RaiseTopmost` 只在 `IsVisible` 时调用且不带 `SWP_SHOWWINDOW`，否则会把全屏隐藏后的窗口重新显示；恢复显示在 `SetVisible(true)` 里显式 `Show()`。
+- 任务栏覆盖窗必须能收到鼠标：使用不透明的普通置顶窗口（`WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`，不启用 `WS_EX_TRANSPARENT`），并每 250 ms 检查 Z 序，**只在被任务栏压下去时**调用 `RaiseTopmost`。`RaiseTopmost` 把窗口插到任务栏正上方（`GetWindow(shell, GW_HWNDPREV)`），不能顶到 TOPMOST 最前，否则会盖住任务栏提示框与右键菜单。调用只在 `IsVisible` 时进行且不带 `SWP_SHOWWINDOW`，否则会把全屏隐藏后的窗口重新显示；恢复显示在 `SetVisible(true)` 里显式 `Show()`。
+- 覆盖区宽度：原生时钟约 93 px 放不下长格式，`SyncGeometry` 用 `NativeMethods.FindChildToRight` 把矩形向右扩到紧邻的「操作中心」按钮；字号保持原生，`Viewbox` 用 `Stretch.Uniform` + `DownOnly`（不能用 `Fill`，会横向压扁字形）。覆盖通知按钮后由共用菜单的「操作中心」项补偿入口。
 - 面板不抢焦点：悬停约 0.42 秒自动展开；单击固定，点击面板外或再次单击任务栏时钟收起；面板只读 `AppSettings` 的副本。
 - 窗口只读 `AppSettings` 的副本式引用，修改后由控制器统一保存。
