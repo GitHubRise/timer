@@ -258,9 +258,18 @@ certutil -hashfile GameClock.exe SHA256
 
 环境：Windows + .NET Framework 4.8（系统自带 `csc.exe`），无需 Visual Studio、NuGet 或网络。
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\build.ps1
+```bat
+build.bat
 ```
+
+也可以在 PowerShell 里直接调用脚本（`build.bat` 只是转发，参数相同）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build.ps1        # 增量构建
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -Clean # 先清空 dist\ 再构建
+```
+
+`build.bat` 会切到 UTF-8 代码页、以 `-ExecutionPolicy Bypass` 调用 `build.ps1`，并原样转发参数（如 `build.bat -Clean`）；PowerShell 退出码会作为批处理的退出码，构建失败时返回 1。
 
 输出：
 
@@ -323,6 +332,8 @@ build/
   app.manifest          应用清单
   GameClock.exe.config  运行配置
   build.number          编译号计数（本机状态，不入库）
+build.ps1               构建主脚本（版本、编译号、csc 编译、打包与校验）
+build.bat               构建入口（转发到 build.ps1，可带 -Clean）
 assets/
   GameClock.ico          蓝色科技表盘图标
 ```

@@ -141,7 +141,15 @@ $checksumFiles = @(
 $checksumLines = @()
 foreach ($name in $checksumFiles) {
     $filePath = Join-Path $distDir $name
-    $hash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    # 用 .NET 直接算 SHA-256，不依赖 Get-FileHash（从 cmd 调用 powershell.exe 时该命令可能不可用）
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hashBytes = $sha.ComputeHash([System.IO.File]::ReadAllBytes($filePath))
+    }
+    finally {
+        $sha.Dispose()
+    }
+    $hash = ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
     $checksumLines += ($hash + '  ' + $name)
 }
 [System.IO.File]::WriteAllLines($checksumPath, [string[]]$checksumLines, (New-Object System.Text.UTF8Encoding($false)))
