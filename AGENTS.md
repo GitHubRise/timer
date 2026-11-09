@@ -49,7 +49,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 也可直接运行根目录的 `build.bat`（转发到 `build.ps1`，参数原样传递，如 `build.bat -Clean` 先清空 `dist\` 再构建），供不用手工输入 PowerShell 命令的场景；`build.bat` 会把 PowerShell 退出码作为自身退出码。
 - 校验文件用 .NET `SHA256` 计算，不依赖 `Get-FileHash`：从 `cmd` 调 `powershell.exe` 时该命令可能不可用。
 
-脚本行为：生成 `src/generated/BuildInfo.g.cs`（版本、`yyyyMMdd.N` 编译号、编译时间）→ 自增 `build/build.number` → 用 `csc.exe` 递归编译 `src/` 下全部 `.cs` → 输出 `dist/GameClock.exe`、复制 `GameClock.exe.config` 与 `README.md` → 打包 `dist/GameClock-v0.0.2.zip` 并写 `dist/SHA256SUMS.txt`。
+脚本行为：生成 `src/generated/BuildInfo.g.cs`（版本、`yyyyMMdd.N` 编译号、编译时间）→ 自增 `build/build.number` → 用 `csc.exe` 递归编译 `src/` 下全部 `.cs` → 输出 `dist/GameClock.exe`、复制 `GameClock.exe.config` 与 `README.md` → 打包 `dist/GameClock-v0.0.3.zip` 并写 `dist/SHA256SUMS.txt`。
 
 - 编译器：`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`，对应 C# 5 语法上限：不可用字符串内插、`?.`、`nameof`、表达式体成员等新语法。
 - 项目没有 `.sln`/`.csproj`；在 IDE 中新增文件后，必须以 `build.ps1` 的实际编译结果为准。

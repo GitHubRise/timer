@@ -20,8 +20,8 @@ using System.Windows.Threading;
 [assembly: AssemblyConfiguration("Release")]
 [assembly: AssemblyCompany("GameClock")]
 [assembly: AssemblyCopyright("Copyright © 2026 GameClock")]
-[assembly: AssemblyVersion("0.0.2.0")]
-[assembly: AssemblyFileVersion("0.0.2.0")]
+[assembly: AssemblyVersion("0.0.3.0")]
+[assembly: AssemblyFileVersion("0.0.3.0")]
 [assembly: ComVisible(false)]
 
 namespace GameClock

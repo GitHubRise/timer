@@ -11,13 +11,13 @@ $iconPath = Join-Path $root 'assets\GameClock.ico'
 $manifestPath = Join-Path $root 'build\app.manifest'
 $configPath = Join-Path $root 'build\GameClock.exe.config'
 $exePath = Join-Path $distDir 'GameClock.exe'
-$zipPath = Join-Path $distDir 'GameClock-v0.0.2.zip'
+$zipPath = Join-Path $distDir 'GameClock-v0.0.3.zip'
 $checksumPath = Join-Path $distDir 'SHA256SUMS.txt'
 $buildNumberPath = Join-Path $root 'build\build.number'
 $generatedDir = Join-Path $sourceDir 'generated'
 $buildInfoPath = Join-Path $generatedDir 'BuildInfo.g.cs'
 $csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-$version = '0.0.2'
+$version = '0.0.3'
 
 if (-not (Test-Path -LiteralPath $csc)) {
     throw "找不到 .NET Framework 4.x 编译器：$csc"
@@ -137,7 +137,7 @@ $checksumFiles = @(
     'GameClock.exe',
     'GameClock.exe.config',
     'README.md',
-    'GameClock-v0.0.2.zip'
+    'GameClock-v0.0.3.zip'
 )
 $checksumLines = @()
 foreach ($name in $checksumFiles) {
