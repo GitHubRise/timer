@@ -15,7 +15,7 @@ Windows 10/11 上的桌面时间悬浮窗：无边框透明置顶窗口 + 系统
 | `code-skeleton` | 采用：`src/` 按内容域分模块，禁止单文件包打天下；模块契约写入 `docs/` |
 | `skeleton` | 采用：每个目录一份 `Readme.md`；单目录 15 文件阈值；一级目录单一轴 |
 | `docs-numbering` | 采用：`docs/` 六位编号文档（L1） |
-| `git-workflow` | 采用：GitHub 私有仓 `GitHubRise/timer`（`origin`），`main` 直接提交并推送；Conventional Commits 中文 subject |
+| `git-workflow` | 采用：GitHub 公开仓 `GitHubRise/timer`（`origin`），`main` 直接提交并推送；Conventional Commits 中文 subject |
 | `memory` / `temp` | 未在本项目启用；临时脚本放工作区 `temp/` |
 
 ## 3. 目录地图
