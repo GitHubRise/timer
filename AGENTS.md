@@ -66,6 +66,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 时区同步统一走 `TimeZoneCatalog.GetSystemId()`（内部读 `TimeZoneInfo.Local`），设置窗口不得直接读 `TimeZoneInfo.Local`；「同步系统时区」只改编辑副本，点「应用」后落盘。
 - 任务栏覆盖窗**不得移动、不得隐藏** `TrayClockWClass`：只按它的矩形绘制不透明覆盖窗，进程退出或异常崩溃后系统时钟自然恢复。覆盖窗用 `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`、不透明背景；任务栏会在面板展开/重绘时把自己提到 TOPMOST 组前面，需每 250 ms `RaiseTopmost`，否则会露出原生时钟。`RaiseTopmost` 只在窗口 `IsVisible` 时调用，且**不得带 `SWP_SHOWWINDOW`**：带它会把刚 `Hide()` 的覆盖窗重新显示，导致全屏隐藏失效（250 ms 置顶与 1 秒全屏隐藏打架）。全屏恢复在 `SetVisible(true)` 里显式 `Show()`，不能只靠 `MoveWindow`。
 - 任务栏交互：悬停约 0.4 秒或左键单击展开 `TaskbarPanelWindow`，右键弹共用菜单；面板不抢焦点，单击后固定、点击面板外收起；面板数据只读 `AppSettings` 的副本，不直接改设置。
+- 注释写在代码里，样板见 `src/settings/SettingsUiHints.cs` 与 `src/app/AppController.cs`：文件头 4–6 行写职责、调用方、约束与已知坑；每个字段、常量与方法（含 private、事件处理器、lambda 所在方法）一条 `/// <summary>`，字段按用途分组并插入 `// ===== 组名 =====`；`if`/`switch`/`try`/`catch`/循环前一行说明「为什么」，空 `catch` 必须写清可吞原因。整体注释行 ÷ 代码行不低于 25%，新增代码同步补注释。
 - 交付前至少执行一次 `build.ps1` 并确认 `dist\GameClock.exe` 生成；不在 `dist/` 内做手工修改。
 
 ## 6. 已知缺口
