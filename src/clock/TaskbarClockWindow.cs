@@ -58,6 +58,19 @@ namespace GameClock
         /// <summary>主题/尺寸变化后延迟重采样，合并连续的多条广播消息。</summary>
         private const int ResampleDelayMs = 500;
 
+        /// <summary>
+        /// 左键交给系统时钟后，覆盖窗保持隐藏的最长时间：够让这次合成点击的按下/松开消息
+        /// 全部落地（否则松开消息会落回自己身上再触发一次单击，表现为连闪），
+        /// 又不至于让系统原生格式停留到肉眼可辨。
+        /// </summary>
+        private const int CalendarRestoreDelayMs = 260;
+
+        /// <summary>
+        /// 两次左键单击之间的最小间隔：合成点击的松开消息可能回落到自己身上，
+        /// 冷却期内重复触发直接忽略，作为防连闪的第二道闸。
+        /// </summary>
+        private const int CalendarClickCooldownMs = 600;
+
         // ===== 控件与计时器 =====
 
         /// <summary>设置副本：构造时克隆并 Normalize，运行期由 ApplySettings 局部更新。</summary>
@@ -111,6 +124,12 @@ namespace GameClock
         /// 避免任何一条路径把这个刻意隐藏的窗口又显示回来，导致合成点击落空。
         /// </summary>
         private bool _calendarPending;
+
+        /// <summary>隐藏覆盖窗交给系统时钟的时刻（<see cref="Environment.TickCount"/>）。</summary>
+        private int _calendarHiddenAt;
+
+        /// <summary>上一次左键单击转交系统日历的时刻，用于 <see cref="CalendarClickCooldownMs"/> 冷却判断。</summary>
+        private int _lastCalendarClickAt;
 
         /// <summary>
         /// 悬停展开是否已“武装”。点过时钟后置 false：光标还停在时钟上，若继续按 420 ms 展开
@@ -399,10 +418,14 @@ namespace GameClock
         /// </summary>
         private void OnTick(object sender, EventArgs e)
         {
-            // 正在为“打开系统日历”临时隐藏覆盖窗：此时不能重绘也不能抬顶，
-            // 否则会把隐藏中的窗口重新显示出来、把消费者的点击吃掉。
+            // 左键刚把时钟交给系统：覆盖窗保持隐藏，直到光标离开时钟区域再取回来。
+            // 如果这里立刻显示，合成点击的松开消息可能落回自己身上，形成“点击→隐藏→显示→再点击”的连续闪烁。
             if (_calendarPending)
             {
+                if (ShouldRestoreAfterCalendarClick())
+                {
+                    RestoreAfterCalendarClick();
+                }
                 return;
             }
             // force=false：文本没变就跳过重排，省下布局开销。
@@ -516,32 +539,84 @@ namespace GameClock
         /// </summary>
         private void HandleClockLeftClick()
         {
+            // 冷却期内直接忽略：合成点击的松开消息可能回落到自己身上，不挡住就会连闪。
+            // 隐藏期间的重复点击同样忽略——那说明上一次移交还没走完。
+            if (_calendarPending
+                || unchecked(Environment.TickCount - _lastCalendarClickAt) < CalendarClickCooldownMs)
+            {
+                return;
+            }
+
             // 点击前先收面板：系统日历面板和今日面板叠在一起会互相遮挡。
             HidePanel();
             // 点击后光标还停在时钟上，先解除悬停武装，免得 420 ms 后今日面板又弹出来盖住日历。
             _hoverArmed = false;
 
             // 覆盖窗正好压在原生时钟上，必须先把窗口隐藏（不可见的窗口不参与命中测试），
-            // 点击才会落到下面的系统时钟上。隐藏窗口会露出系统自己的格式，所以这一段
-            // 不能拖：隐藏、点击、恢复之间的等待都压到几十毫秒，避免用户看到“格式跳回去”。
+            // 点击才会落到下面的系统时钟上。合成点击发出去后先不回显：立刻显示会让这次点击的
+            // 松开消息落回自己身上，又触发一次本方法，表现为“点了以后一直闪”。
+            // 回显交给 OnTick：等光标离开时钟区域、或超过 CalendarRestoreDelayMs 再取回来。
             _calendarPending = true;
+            _calendarHiddenAt = Environment.TickCount;
+            _lastCalendarClickAt = _calendarHiddenAt;
             try
             {
                 Visibility = Visibility.Hidden;
                 // 窗口不可见后命中测试才会落到下面的原生时钟上，这里补一次真实点击。
                 NativeMethods.ClickNativeClock();
             }
-            finally
+            catch (Exception)
             {
-                _calendarPending = false;
-                if (_started)
+                // 合成点击失败（找不到时钟、被系统拒绝）不能把窗口留在隐藏状态，
+                // 否则时钟位置会一直是系统原生格式；这里直接恢复。
+                RestoreAfterCalendarClick();
+            }
+        }
+
+        /// <summary>
+        /// 判断是否该把覆盖窗取回来：光标已离开时钟区域，或隐藏时长已超过
+        /// <see cref="CalendarRestoreDelayMs"/>（后者是主路径：点完鼠标通常还停在时钟上）。
+        /// </summary>
+        private bool ShouldRestoreAfterCalendarClick()
+        {
+            // 已 Stop 或窗口本来就没在显示：恢复也无意义。
+            if (!_started)
+            {
+                return true;
+            }
+
+            NativeMethods.POINT point;
+            if (NativeMethods.GetCursorPos(out point))
+            {
+                // 直接比物理像素矩形（窗口坐标要经 DPI 换算，隐藏时也未必可靠）。
+                NativeMethods.RECT rect;
+                if (NativeMethods.GetWindowRect(new WindowInteropHelper(this).Handle, out rect))
                 {
-                    // 无论点击是否成功都要显示回来，否则覆盖窗会一直隐藏到下次启动。
-                    Visibility = Visibility.Visible;
-                    // 恢复显示并重新抬到任务栏正上方，保持原有的置顶节奏。
-                    NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
+                    if (point.X < rect.Left || point.X >= rect.Right || point.Y < rect.Top || point.Y >= rect.Bottom)
+                    {
+                        return true;
+                    }
                 }
             }
+
+            // 光标还停在时钟上：等够一拍就恢复，别把系统原生格式亮太久。
+            return unchecked(Environment.TickCount - _calendarHiddenAt) >= CalendarRestoreDelayMs;
+        }
+
+        /// <summary>
+        /// 左键交给系统后把覆盖窗取回来：清标志、重新显示，并插回任务栏正上方。
+        /// 重复调用是安全的（已恢复时只会再抬一次顶）。
+        /// </summary>
+        private void RestoreAfterCalendarClick()
+        {
+            _calendarPending = false;
+            if (!_started)
+            {
+                return;
+            }
+
+            Visibility = Visibility.Visible;
+            NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
         }
 
         /// <summary>收起面板并抛出 <see cref="MenuRequested"/>，由控制器弹出与托盘共用的菜单。</summary>

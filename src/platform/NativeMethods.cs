@@ -751,8 +751,9 @@ namespace GameClock
         /// 为什么不用消息投递：给 <c>TrayClockWClass</c> 发 <c>WM_LBUTTONDOWN/UP</c> 实测无效，
         /// 该控件只在真实鼠标输入（带命中测试与鼠标捕获）时才展开面板。
         /// 调用方必须先把覆盖窗隐藏（<c>WS_EX_TRANSPARENT</c> 单独设置并不会让点击穿透），
-        /// 否则点击会被覆盖窗自己吃掉。隐藏期间会露出系统自己的时间格式，所以这里的等待
-        /// 压到最短（约 30 ms），把“格式跳一下”压缩到难以察觉的一两帧。
+        /// 否则点击会被覆盖窗自己吃掉。隐藏期间会露出系统自己的时间格式，所以由调用方
+        /// 决定何时把覆盖窗取回来；这里的等待只保证“先悬停到位、再按下、再松开”，
+        /// 让任务栏先进入 hover 状态（第一次点击尤其需要），避免点击被当成无效输入。
         /// 找不到时钟（任务栏改版）时静默放弃，系统时钟不受影响。
         /// </summary>
         public static void ClickNativeClock()
@@ -769,12 +770,18 @@ namespace GameClock
                 return;
             }
 
-            // 取时钟矩形中心：点这里等于用户点系统时钟本身。
-            SetCursorPos((rect.Left + rect.Right) / 2, (rect.Top + rect.Bottom) / 2);
+            int centerX = (rect.Left + rect.Right) / 2;
+            int centerY = (rect.Top + rect.Bottom) / 2;
+
+            // 先抖一下光标再回到中心：任务栏靠 WM_MOUSEMOVE 进入 hover 态，
+            // 冷启动时直接按下经常被忽略（表现为“第一次点不开”）。
+            SetCursorPos(centerX - 1, centerY);
+            Thread.Sleep(16);
+            SetCursorPos(centerX, centerY);
             // 光标先到位再按键：系统按光标位置判定命中的是哪个托盘项。
-            Thread.Sleep(12);
+            Thread.Sleep(40);
             mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
-            Thread.Sleep(18);
+            Thread.Sleep(40);
             mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
         }
 
