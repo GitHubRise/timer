@@ -3,7 +3,7 @@
 // 外观：字体取原生时钟 WM_GETFONT，字号 = 原生字号 × TaskbarFontScale/100；背景与文字色按实际像素采样推算。
 // 节奏：250 ms 重绘并抬到最前（任务栏展开/重绘后会抢 TOPMOST），1 s 重同步几何与全屏状态。
 // 已知坑：RaiseTopmost 不得带 SWP_SHOWWINDOW，否则会把刚 Hide 的覆盖窗重新显示、顶掉全屏隐藏；
-// 全屏恢复必须在 SetVisible(true) 里显式 Show()。面板不抢焦点，点击面板外由 60 ms 轮询收起。
+// 全屏恢复必须在 SetVisible(true) 里显式 Show()。面板只由悬停开合，左键单击转给系统日历面板。
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -81,9 +81,6 @@ namespace GameClock
         /// <summary>主题变化后延迟重采样背景与字体。</summary>
         private readonly DispatcherTimer _resampleTimer;
 
-        /// <summary>点击固定后 60 ms 轮询左键，判定“点击面板外收起”。</summary>
-        private readonly DispatcherTimer _pinClickTimer;
-
         // ===== 运行期数据：天气、时区与面板 =====
 
         /// <summary>最近一次天气；null 表示尚未取到或取数失败。</summary>
@@ -109,6 +106,18 @@ namespace GameClock
         /// <summary>是否已 Start 过；Stop 之后计时器回调靠它短路。</summary>
         private bool _started;
 
+        /// <summary>
+        /// 正在为“打开系统日历”临时隐藏覆盖窗：true 期间 OnTick / OnSyncTick / SetVisible 全部让路，
+        /// 避免任何一条路径把这个刻意隐藏的窗口又显示回来，导致合成点击落空。
+        /// </summary>
+        private bool _calendarPending;
+
+        /// <summary>
+        /// 悬停展开是否已“武装”。点过时钟后置 false：光标还停在时钟上，若继续按 420 ms 展开
+        /// 今日面板，会盖住刚弹出的系统日历；等光标先移出时钟（OnMouseLeave）再重新武装。
+        /// </summary>
+        private bool _hoverArmed = true;
+
         // ===== 外观与字体 =====
 
         /// <summary>当前显示器 DPI 缩放；原生像素与 DIP 之间的换算因子。</summary>
@@ -130,9 +139,6 @@ namespace GameClock
 
         /// <summary>WndProc 钩子来源；OnClosed 时摘钩子，避免回调触碰已销毁的窗口。</summary>
         private HwndSource _source;
-
-        /// <summary>面板是否被点击固定；固定后不因鼠标移开而自动收起。</summary>
-        private bool _panelPinned;
 
         /// <summary>
         /// 构造覆盖窗：克隆设置、建立无边框不透明窗口、单一文本块与外层 Viewbox，并创建全部计时器。
@@ -220,11 +226,6 @@ namespace GameClock
             _resampleTimer = new DispatcherTimer(DispatcherPriority.Background);
             _resampleTimer.Interval = TimeSpan.FromMilliseconds(ResampleDelayMs);
             _resampleTimer.Tick += OnResampleTick;
-
-            // 60 ms 轮询左键状态：用于“点击固定后，在面板外按下即收起”的判定。
-            _pinClickTimer = new DispatcherTimer(DispatcherPriority.Background);
-            _pinClickTimer.Interval = TimeSpan.FromMilliseconds(60);
-            _pinClickTimer.Tick += OnPinClickTick;
         }
 
         /// <summary>右键菜单请求；由控制器弹出与托盘共用的菜单。</summary>
@@ -274,7 +275,6 @@ namespace GameClock
             _hoverTimer.Stop();
             _panelCloseTimer.Stop();
             _resampleTimer.Stop();
-            _pinClickTimer.Stop();
             // 面板先收起来，否则主窗隐藏后它还会浮在桌面上。
             HidePanel();
             // 只在可见时 Hide，减少无谓的窗口消息。
@@ -377,7 +377,6 @@ namespace GameClock
             _hoverTimer.Stop();
             _panelCloseTimer.Stop();
             _resampleTimer.Stop();
-            _pinClickTimer.Stop();
             // 摘钩子并把 _source 置空，防止重入 OnClosed 时重复 RemoveHook。
             if (_source != null)
             {
@@ -400,6 +399,12 @@ namespace GameClock
         /// </summary>
         private void OnTick(object sender, EventArgs e)
         {
+            // 正在为“打开系统日历”临时隐藏覆盖窗：此时不能重绘也不能抬顶，
+            // 否则会把隐藏中的窗口重新显示出来、把消费者的点击吃掉。
+            if (_calendarPending)
+            {
+                return;
+            }
             // force=false：文本没变就跳过重排，省下布局开销。
             UpdateText(false);
             // 任务栏会在面板展开、任务栏重绘时把自己提到最顶层窗口组前面，
@@ -425,6 +430,11 @@ namespace GameClock
         /// </summary>
         private void OnSyncTick(object sender, EventArgs e)
         {
+            // 日历点击进行中：窗口刻意隐藏着，任何同步都可能带 SWP_SHOWWINDOW 把它显示回来。
+            if (_calendarPending)
+            {
+                return;
+            }
             // 每秒一次足够跟上任务栏移动；失败分支内部会自行隐藏或保持现状。
             SyncGeometry(false);
         }
@@ -501,27 +511,37 @@ namespace GameClock
         }
 
         /// <summary>
-        /// 左键单击：未展开则以固定态展开；已展开时，固定态再点一次收起，悬浮态转为固定。
+        /// 左键单击：收起今日面板，然后打开系统原生的「日历」飞出面板（等价于点系统时钟）。
+        /// 今日面板只由悬停展开、移开收起，不再靠点击固定；「打开设置」走面板底部按钮或右键菜单。
         /// </summary>
         private void HandleClockLeftClick()
         {
-            // 面板已展开：固定态再点一次收起，悬浮态则转成固定。
-            if (_panel != null && _panel.IsVisible)
+            // 点击前先收面板：系统日历面板和今日面板叠在一起会互相遮挡。
+            HidePanel();
+            // 点击后光标还停在时钟上，先解除悬停武装，免得 420 ms 后今日面板又弹出来盖住日历。
+            _hoverArmed = false;
+
+            // 覆盖窗正好压在原生时钟上，必须先把窗口隐藏（不可见的窗口不参与命中测试），
+            // 点击才会落到下面的系统时钟上。隐藏窗口会露出系统自己的格式，所以这一段
+            // 不能拖：隐藏、点击、恢复之间的等待都压到几十毫秒，避免用户看到“格式跳回去”。
+            _calendarPending = true;
+            try
             {
-                // 已固定：再点一次视为“关掉”，与系统时钟的点击行为一致。
-                if (_panelPinned)
-                {
-                    HidePanel();
-                    return;
-                }
-                // 悬浮展开的面板，单击后固定住，方便用鼠标去点“打开设置”。
-                _panelPinned = true;
-                // 用 60 ms 轮询等左键松开，避免这次按下立刻被当成“点击面板外”。
-                _pinClickTimer.Start();
-                return;
+                Visibility = Visibility.Hidden;
+                // 窗口不可见后命中测试才会落到下面的原生时钟上，这里补一次真实点击。
+                NativeMethods.ClickNativeClock();
             }
-            // 面板没开：直接以固定态展开，用户点一下就能停在屏幕上。
-            ShowPanel(true);
+            finally
+            {
+                _calendarPending = false;
+                if (_started)
+                {
+                    // 无论点击是否成功都要显示回来，否则覆盖窗会一直隐藏到下次启动。
+                    Visibility = Visibility.Visible;
+                    // 恢复显示并重新抬到任务栏正上方，保持原有的置顶节奏。
+                    NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
+                }
+            }
         }
 
         /// <summary>收起面板并抛出 <see cref="MenuRequested"/>，由控制器弹出与托盘共用的菜单。</summary>
@@ -542,6 +562,11 @@ namespace GameClock
         {
             // 鼠标回到时钟上：取消“移开即收起”的倒计时。
             _panelCloseTimer.Stop();
+            // 刚点过“打开日历”、光标还没离开过：不再弹今日面板，否则会盖住系统日历面板。
+            if (!_hoverArmed)
+            {
+                return;
+            }
             // 面板已展开就不再排悬停展开，避免重复 Show。
             if (_panel == null || !_panel.IsVisible)
             {
@@ -554,6 +579,8 @@ namespace GameClock
         /// <summary>鼠标离开时钟：取消悬停展开；面板开着则启动 360 ms 收起倒计时。</summary>
         private void OnMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
         {
+            // 光标已经离开：下次真正“移回来”时才允许悬停展开，重新武装悬停。
+            _hoverArmed = true;
             // 离开即取消悬停展开：还没到 420 ms 就移走，不应弹面板。
             _hoverTimer.Stop();
             // 只有面板确实开着才排收起倒计时；没开就什么都不做。
@@ -566,7 +593,7 @@ namespace GameClock
         }
 
         /// <summary>
-        /// 悬停计时到点：再次确认光标仍在时钟上且面板未开，才以“非固定”态展开。
+        /// 悬停计时到点：再次确认光标仍在时钟上且面板未开，才展开面板。
         /// </summary>
         private void OnHoverTick(object sender, EventArgs e)
         {
@@ -577,51 +604,23 @@ namespace GameClock
             {
                 return;
             }
-            // pin=false：悬停展开是临时的，移开 360 ms 后自动收起。
-            ShowPanel(false);
+            ShowPanel();
         }
 
         /// <summary>
-        /// 收起倒计时到点：固定态、光标仍在时钟上或已移到面板上，都再等下一次判断。
-        /// 只有三样都不成立才真正收起。
+        /// 收起倒计时到点：光标仍在时钟上或已移到面板上就再等下一次判断，否则收起。
         /// </summary>
         private void OnPanelCloseTick(object sender, EventArgs e)
         {
             // 单次计时器，先停。
             _panelCloseTimer.Stop();
-            // 固定态不自动收起；光标还在时钟或面板上就继续等。
-            if (_panelPinned || IsCursorOverClock() || IsCursorOverPanel())
+            // 光标还在时钟或面板上就继续等：用户只是从时钟移向面板的途中。
+            if (IsCursorOverClock() || IsCursorOverPanel())
             {
                 return;
             }
-            // 真正收起：清掉固定态并隐藏面板。
+            // 真正收起。
             HidePanel();
-        }
-
-        /// <summary>
-        /// 点击固定后的左键轮询：左键按下时若光标不在时钟也不在面板上，视为“点击外部”并收起。
-        /// 用轮询而不是鼠标捕获，是因为面板与覆盖窗是两个独立 HWND。
-        /// </summary>
-        private void OnPinClickTick(object sender, EventArgs e)
-        {
-            // 面板已收起或固定态被清掉：轮询没有意义，停表。
-            if (!_panelPinned || _panel == null || !_panel.IsVisible)
-            {
-                _pinClickTimer.Stop();
-                return;
-            }
-
-            // 只关心“按住”的瞬间：左键已松开就跳过本轮，避免把普通移动误判成点击。
-            if (!NativeMethods.IsLeftMouseButtonDown())
-            {
-                return;
-            }
-
-            // 按在时钟/面板外：视为点击外部，收起并解除固定。
-            if (!IsCursorOverClock() && !IsCursorOverPanel())
-            {
-                HidePanel();
-            }
         }
 
         /// <summary>光标是否落在原生时钟矩形内（屏幕物理像素比较，不做 DIP 换算）。</summary>
@@ -676,9 +675,9 @@ namespace GameClock
 
         /// <summary>
         /// 展开面板：必要前提不满足时直接放弃；否则懒创建、刷新模型、贴边显示。
+        /// 面板只由悬停展开，不再支持点击固定（左键留给系统日历面板）。
         /// </summary>
-        /// <param name="pin">true = 点击固定（不自动收起），false = 悬停临时。</param>
-        private void ShowPanel(bool pin)
+        private void ShowPanel()
         {
             // 未启动、未定位到原生时钟或句柄无效时展开没有意义。
             if (!_started || !_hasClockRect || _clockWindow == IntPtr.Zero)
@@ -688,29 +687,19 @@ namespace GameClock
 
             // 懒创建：面板只在第一次展开时构造，减少启动开销。
             EnsurePanel();
-            // pin 决定这次展开是“悬停临时”还是“点击固定”。
-            _panelPinned = pin;
             // 每次展开都重建模型：面板可能已关了许久，数据必须是最新的。
             _panel.SetModel(BuildPanelModel(TimeZoneCatalog.GetNow(_timeZone)));
             _panel.ShowNear(_clockRect, _dpiScale);
-            // 固定态立刻开轮询，用来判定“点击面板外收起”。
-            if (pin)
-            {
-                _pinClickTimer.Start();
-            }
             // 面板是 TOPMOST 窗口，可能把覆盖窗压下去，重新抬一次。
             NativeMethods.RaiseTopmost(new WindowInteropHelper(this).Handle);
         }
 
-        /// <summary>收起面板：停掉三个相关计时器、清固定态并隐藏窗口。</summary>
+        /// <summary>收起面板：停掉两个相关计时器并隐藏窗口。</summary>
         private void HidePanel()
         {
-            // 三个与面板相关的计时器全部停掉，避免收起后又被回调拉起。
+            // 两个与面板相关的计时器全部停掉，避免收起后又被回调拉起。
             _hoverTimer.Stop();
             _panelCloseTimer.Stop();
-            _pinClickTimer.Stop();
-            // 清固定态：下次展开默认回到“悬停临时”语义。
-            _panelPinned = false;
             // 面板可能已被销毁（Closed 里置空），判空后再 Hide。
             if (_panel != null && _panel.IsVisible)
             {
@@ -1426,6 +1415,12 @@ namespace GameClock
         /// </summary>
         private void SetVisible(bool visible)
         {
+            // 日历点击进行中：窗口是刻意隐藏的，这条路径的 Show() 会把点击吃掉，直接跳过。
+            if (_calendarPending)
+            {
+                return;
+            }
+
             // 显示路径：先定位再 Show，顺序反了会先闪在旧位置。
             if (visible)
             {

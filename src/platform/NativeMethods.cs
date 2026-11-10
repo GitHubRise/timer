@@ -723,6 +723,61 @@ namespace GameClock
             keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
 
+        // ===== 系统日历面板 =====
+
+        /// <summary>左键按下（<c>MOUSEEVENTF_LEFTDOWN</c>）。</summary>
+        private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+
+        /// <summary>左键抬起（<c>MOUSEEVENTF_LEFTUP</c>）。</summary>
+        private const uint MOUSEEVENTF_LEFTUP = 0x0004;
+
+        /// <summary>把光标移到屏幕物理像素坐标 (x, y)。</summary>
+        [DllImport("user32.dll")]
+        private static extern bool SetCursorPos(int x, int y);
+
+        /// <summary>合成鼠标事件；本项目只用它做“点一下原生时钟”，不移动窗口、不拖拽。</summary>
+        [DllImport("user32.dll")]
+        private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+
+        /// <summary>找任务栏原生时钟窗口（<c>Shell_TrayWnd</c> 的 <c>TrayClockWClass</c> 子窗口）。</summary>
+        public static IntPtr FindNativeClockWindow()
+        {
+            IntPtr shell = FindWindow("Shell_TrayWnd", null);
+            return shell != IntPtr.Zero ? FindDescendantByClass(shell, "TrayClockWClass") : IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// 在原生时钟中心合成一次真实左键点击，用于打开系统「日历」飞出面板。
+        /// 为什么不用消息投递：给 <c>TrayClockWClass</c> 发 <c>WM_LBUTTONDOWN/UP</c> 实测无效，
+        /// 该控件只在真实鼠标输入（带命中测试与鼠标捕获）时才展开面板。
+        /// 调用方必须先把覆盖窗隐藏（<c>WS_EX_TRANSPARENT</c> 单独设置并不会让点击穿透），
+        /// 否则点击会被覆盖窗自己吃掉。隐藏期间会露出系统自己的时间格式，所以这里的等待
+        /// 压到最短（约 30 ms），把“格式跳一下”压缩到难以察觉的一两帧。
+        /// 找不到时钟（任务栏改版）时静默放弃，系统时钟不受影响。
+        /// </summary>
+        public static void ClickNativeClock()
+        {
+            IntPtr clock = FindNativeClockWindow();
+            if (clock == IntPtr.Zero)
+            {
+                return;
+            }
+
+            RECT rect;
+            if (!GetWindowRect(clock, out rect))
+            {
+                return;
+            }
+
+            // 取时钟矩形中心：点这里等于用户点系统时钟本身。
+            SetCursorPos((rect.Left + rect.Right) / 2, (rect.Top + rect.Bottom) / 2);
+            // 光标先到位再按键：系统按光标位置判定命中的是哪个托盘项。
+            Thread.Sleep(12);
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
+            Thread.Sleep(18);
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
+        }
+
         // ===== 全屏判定 =====
 
         /// <summary>QUNS 状态：D3D 独占全屏应用运行中，是“真全屏”最可靠的信号。</summary>

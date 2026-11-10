@@ -3,7 +3,7 @@
 // 契约：数据只由 TaskbarClockWindow.BuildPanelModel 组装成 TaskbarPanelModel 传入，本窗口不读
 // AppSettings、不算时间与日程，只负责排版与定位，因此可随时创建/销毁。
 // 定位按“屏幕物理像素”回算：锚点用原生时钟的 RECT，尺寸用本窗口 DIP × DPI，二者不可混用。
-// 已知坑：ShowActivated=false + WS_EX_NOACTIVATE 才不抢焦点；点击面板外收起由父窗口轮询负责。
+// 已知坑：ShowActivated=false + WS_EX_NOACTIVATE 才不抢焦点；面板开合完全由父窗口的悬停计时器决定。
 using System;
 using System.Collections.Generic;
 using System.Windows;
@@ -158,7 +158,8 @@ namespace GameClock
             _emptyText.Margin = new Thickness(0, 2, 0, 2);
 
             // 底部工具行：左侧灰色操作提示，右侧「打开设置」按钮，用 Grid 两列对齐。
-            TextBlock hint = UiTheme.MakeText("左键展开 / 右键菜单", 10.5, UiTheme.TextMuted, FontWeights.Normal);
+            // 提示里写明左键是“日历”而不是展开面板，避免用户点了以后找不到面板。
+            TextBlock hint = UiTheme.MakeText("悬停展开 · 左键日历 · 右键菜单", 10.5, UiTheme.TextMuted, FontWeights.Normal);
             hint.VerticalAlignment = VerticalAlignment.Center;
 
             // 按钮只抛事件、不直接开设置窗口：本窗口不持有控制器引用，便于单独销毁。
