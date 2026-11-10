@@ -24,5 +24,5 @@
 - 任务栏覆盖窗必须能收到鼠标：使用不透明的普通置顶窗口（`WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`，不启用 `WS_EX_TRANSPARENT`），并每 250 ms 检查 Z 序，**只在被任务栏压下去时**调用 `RaiseTopmost`。`RaiseTopmost` 把窗口插到任务栏正上方（`GetWindow(shell, GW_HWNDPREV)`），不能顶到 TOPMOST 最前，否则会盖住任务栏提示框与右键菜单。调用只在 `IsVisible` 时进行且不带 `SWP_SHOWWINDOW`，否则会把全屏隐藏后的窗口重新显示；恢复显示在 `SetVisible(true)` 里显式 `Show()`。
 - 覆盖区宽度：原生时钟约 93 px 放不下长格式，`SyncGeometry` 用 `NativeMethods.FindChildToRight` 把矩形向右扩到紧邻的「操作中心」按钮；字号保持原生，`Viewbox` 用 `Stretch.Uniform` + `DownOnly`（不能用 `Fill`，会横向压扁字形）。覆盖通知按钮后由共用菜单的「操作中心」项补偿入口。
 - 面板不抢焦点：悬停约 0.42 秒自动展开、光标移开 0.36 秒收起，开合只由悬停计时器决定（点击不再固定）；面板只读 `AppSettings` 的副本。
-- 左键单击转给系统日历：覆盖窗先隐藏 → `NativeMethods.ClickNativeClock()` 合成真实点击 → **保持隐藏约 260 ms**（`CalendarRestoreDelayMs`，或光标已离开时钟矩形）再由 250 ms 的 `OnTick` 调 `RestoreAfterCalendarClick()` 显示回来；另有 `CalendarClickCooldownMs = 600` 冷却，冷却期内的重复单击直接忽略。不能点完立刻回显（松开消息会再触发一次单击，表现为连续闪烁）。期间 `_hoverArmed = false`，避免悬停面板盖住日历。
+- 左键单击转给系统日历：先 `NativeMethods.PositionCursorOnNativeClock()`（覆盖窗还可见时把光标摆到原生时钟中心、预热任务栏 hover）→ 隐藏覆盖窗 → `Dispatcher.BeginInvoke` 延后调 `NativeMethods.ClickNativeClock()` 合成真实点击（不能同步发：当前输入消息里窗口还握着捕获）→ **保持隐藏约 90 ms**（`CalendarRestoreDelayMs`，或光标已离开时钟矩形）再由 250 ms 的 `OnTick` 调 `RestoreAfterCalendarClick()` 显示回来；另有 `CalendarClickCooldownMs = 600` 冷却与 `CalendarHoverGraceMs = 3000` 悬停宽限（宽限内不弹今日面板，免得盖住日历）。不能点完立刻回显（松开消息会再触发一次单击，表现为连续闪烁）。
 - 窗口只读 `AppSettings` 的副本式引用，修改后由控制器统一保存。

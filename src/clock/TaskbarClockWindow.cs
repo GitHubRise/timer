@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -63,13 +64,19 @@ namespace GameClock
         /// 全部落地（否则松开消息会落回自己身上再触发一次单击，表现为连闪），
         /// 又不至于让系统原生格式停留到肉眼可辨。
         /// </summary>
-        private const int CalendarRestoreDelayMs = 260;
+        private const int CalendarRestoreDelayMs = 90;
 
         /// <summary>
         /// 两次左键单击之间的最小间隔：合成点击的松开消息可能回落到自己身上，
         /// 冷却期内重复触发直接忽略，作为防连闪的第二道闸。
         /// </summary>
         private const int CalendarClickCooldownMs = 600;
+
+        /// <summary>
+        /// 点击移交系统日历后的悬停宽限期：这段时间内即使光标还停在时钟上，也不再弹今日面板，
+        /// 免得盖住刚打开的系统日历；过了宽限期由 OnTick 自动重新武装悬停。
+        /// </summary>
+        private const int CalendarHoverGraceMs = 3000;
 
         // ===== 控件与计时器 =====
 
@@ -430,6 +437,13 @@ namespace GameClock
             }
             // force=false：文本没变就跳过重排，省下布局开销。
             UpdateText(false);
+            // 点击过时钟、并把光标留在原地时，悬停暂时被解除；宽限期过后自动恢复，
+            // 这样系统日历不会被 420 ms 后弹出的今日面板盖住，之后悬停又照常可用。
+            if (!_hoverArmed
+                && unchecked(Environment.TickCount - _lastCalendarClickAt) >= CalendarHoverGraceMs)
+            {
+                _hoverArmed = true;
+            }
             // 任务栏会在面板展开、任务栏重绘时把自己提到最顶层窗口组前面，
             // 覆盖窗必须重新抬到最前，否则会露出系统的原生时钟。
             // 但只在真的被压下去时才抬：无条件每 250 ms 抬顶会把任务栏的提示框、
@@ -552,6 +566,10 @@ namespace GameClock
             // 点击后光标还停在时钟上，先解除悬停武装，免得 420 ms 后今日面板又弹出来盖住日历。
             _hoverArmed = false;
 
+            // 点击前先把光标摆到系统时钟中心并预热任务栏 hover：这一步在覆盖窗还可见时做，
+            // 不会露出系统格式；预热完再隐藏窗口，隐藏时长就只剩下真正发送点击的那几十毫秒。
+            NativeMethods.PositionCursorOnNativeClock();
+
             // 覆盖窗正好压在原生时钟上，必须先把窗口隐藏（不可见的窗口不参与命中测试），
             // 点击才会落到下面的系统时钟上。合成点击发出去后先不回显：立刻显示会让这次点击的
             // 松开消息落回自己身上，又触发一次本方法，表现为“点了以后一直闪”。
@@ -561,14 +579,35 @@ namespace GameClock
             _lastCalendarClickAt = _calendarHiddenAt;
             try
             {
+                // 先放开鼠标捕获：这一下单击还在自己的消息处理里，WPF/窗口仍可能持有捕获，
+                // 此时注入的按下会回投到自己身上，日历就一直不弹（表现为“闪一下但没打开”）。
+                Mouse.Capture(null);
                 Visibility = Visibility.Hidden;
-                // 窗口不可见后命中测试才会落到下面的原生时钟上，这里补一次真实点击。
-                NativeMethods.ClickNativeClock();
+                // 合成点击要等当前这条输入消息走完（捕获释放、Z 序重排）再发，
+                // 否则注入的 down/up 仍会被正在收尾的窗口吃掉。
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(ClickNativeClockDeferred));
             }
             catch (Exception)
             {
                 // 合成点击失败（找不到时钟、被系统拒绝）不能把窗口留在隐藏状态，
                 // 否则时钟位置会一直是系统原生格式；这里直接恢复。
+                RestoreAfterCalendarClick();
+            }
+        }
+
+        /// <summary>
+        /// 延迟到输入队列空闲后真正发出合成点击：此覆盖窗已隐藏，命中测试会落到系统时钟上。
+        /// 失败时把覆盖窗取回来，避免一直亮着系统原生格式。
+        /// </summary>
+        private void ClickNativeClockDeferred()
+        {
+            try
+            {
+                // 窗口不可见后命中测试才会落到下面的原生时钟上，这里补一次真实点击。
+                NativeMethods.ClickNativeClock();
+            }
+            catch (Exception)
+            {
                 RestoreAfterCalendarClick();
             }
         }
@@ -654,8 +693,9 @@ namespace GameClock
         /// <summary>鼠标离开时钟：取消悬停展开；面板开着则启动 360 ms 收起倒计时。</summary>
         private void OnMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            // 光标已经离开：下次真正“移回来”时才允许悬停展开，重新武装悬停。
-            _hoverArmed = true;
+            // 这里不直接重新武装：隐藏覆盖窗去点系统日历也会触发一次“离开”，
+            // 立刻武装会让 420 ms 后今日面板又弹出来盖住刚打开的系统日历。
+            // 重新武装交给 OnTick，按 CalendarHoverGraceMs 宽限期后自动恢复。
             // 离开即取消悬停展开：还没到 420 ms 就移走，不应弹面板。
             _hoverTimer.Stop();
             // 只有面板确实开着才排收起倒计时；没开就什么都不做。

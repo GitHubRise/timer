@@ -751,9 +751,8 @@ namespace GameClock
         /// 为什么不用消息投递：给 <c>TrayClockWClass</c> 发 <c>WM_LBUTTONDOWN/UP</c> 实测无效，
         /// 该控件只在真实鼠标输入（带命中测试与鼠标捕获）时才展开面板。
         /// 调用方必须先把覆盖窗隐藏（<c>WS_EX_TRANSPARENT</c> 单独设置并不会让点击穿透），
-        /// 否则点击会被覆盖窗自己吃掉。隐藏期间会露出系统自己的时间格式，所以由调用方
-        /// 决定何时把覆盖窗取回来；这里的等待只保证“先悬停到位、再按下、再松开”，
-        /// 让任务栏先进入 hover 状态（第一次点击尤其需要），避免点击被当成无效输入。
+        /// 否则点击会被覆盖窗自己吃掉。鼠标预热由 <see cref="PositionCursorOnNativeClock"/> 提前做，
+        /// 这里只按最短时序发点击，把覆盖窗隐藏时长压到最低（隐藏期间会露出系统原生格式）。
         /// 找不到时钟（任务栏改版）时静默放弃，系统时钟不受影响。
         /// </summary>
         public static void ClickNativeClock()
@@ -773,16 +772,41 @@ namespace GameClock
             int centerX = (rect.Left + rect.Right) / 2;
             int centerY = (rect.Top + rect.Bottom) / 2;
 
-            // 先抖一下光标再回到中心：任务栏靠 WM_MOUSEMOVE 进入 hover 态，
-            // 冷启动时直接按下经常被忽略（表现为“第一次点不开”）。
+            // 光标应当在隐藏覆盖窗之前就摆好了（见 PositionCursorOnNativeClock），
+            // 这里只保证一次点击的“到位 → 按下 → 松开”，不再有长等待。
+            SetCursorPos(centerX, centerY);
+            Thread.Sleep(10);
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
+            Thread.Sleep(20);
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
+        }
+
+        /// <summary>
+        /// 把光标摆到原生时钟中心，并把任务栏预热到 hover 态。必须在隐藏覆盖窗**之前**调用：
+        /// 任务栏靠 <c>WM_MOUSEMOVE</c> 进入 hover，冷启动时直接按下经常被忽略（表现为“第一次点不开”）。
+        /// 抖动幅度只有 1 px，用户看不出光标在动。
+        /// </summary>
+        public static void PositionCursorOnNativeClock()
+        {
+            IntPtr clock = FindNativeClockWindow();
+            if (clock == IntPtr.Zero)
+            {
+                return;
+            }
+
+            RECT rect;
+            if (!GetWindowRect(clock, out rect))
+            {
+                return;
+            }
+
+            int centerX = (rect.Left + rect.Right) / 2;
+            int centerY = (rect.Top + rect.Bottom) / 2;
+            // 先偏 1 px 再回中心：这一步产生的移动消息让任务栏进入 hover。
             SetCursorPos(centerX - 1, centerY);
             Thread.Sleep(16);
             SetCursorPos(centerX, centerY);
-            // 光标先到位再按键：系统按光标位置判定命中的是哪个托盘项。
-            Thread.Sleep(40);
-            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
-            Thread.Sleep(40);
-            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
+            Thread.Sleep(30);
         }
 
         // ===== 全屏判定 =====
